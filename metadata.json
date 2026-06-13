@@ -1,0 +1,6 @@
+{
+  "name": "Tamil Calendar",
+  "description": "A native offline Tamil Calendar app with beautiful moon phase highlights and automated reminders.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
