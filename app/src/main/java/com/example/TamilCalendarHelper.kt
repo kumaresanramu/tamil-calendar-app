@@ -117,20 +117,6 @@ object TamilCalendarHelper {
         return Pair(lunarAge, tithi)
     }
 
-    fun toTamilNumerals(num: Int): String {
-        if (num < 1 || num > 99) return num.toString()
-        val digits = listOf("", "௧", "௨", "௩", "௪", "௫", "௬", "௭", "௮", "௯")
-        val ten = "௰"
-        return when {
-            num in 1..9 -> digits[num]
-            num == 10 -> ten
-            num in 11..19 -> ten + digits[num % 10]
-            num in 20..29 -> digits[2] + ten + (if (num % 10 != 0) digits[num % 10] else "")
-            num in 30..39 -> digits[3] + ten + (if (num % 10 != 0) digits[num % 10] else "")
-            else -> num.toString()
-        }
-    }
-
     fun getTamilDate(year: Int, month: Int, day: Int): TamilDate {
         val targetDate = LocalDate.of(year, month, day)
         val sankrantiSelected = getSankrantiDay(year, month)

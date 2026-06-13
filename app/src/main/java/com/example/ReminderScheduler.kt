@@ -78,9 +78,13 @@ object ReminderScheduler {
                     }
                 } else {
                     // One-time or Yearly (based on the current or next year)
-                    var targetYear = baseDate.year
-                    // Set to English month when reminder was created or current month
-                    val targetMonth = baseDate.monthValue 
+                    val parsedCustomDate = try {
+                        reminder.customGregorianDate?.let { LocalDate.parse(it, DateTimeFormatter.ISO_LOCAL_DATE) }
+                    } catch (e: Exception) {
+                        null
+                    }
+                    var targetYear = parsedCustomDate?.year ?: baseDate.year
+                    val targetMonth = parsedCustomDate?.monthValue ?: baseDate.monthValue
                     
                     val maxDay = LocalDate.of(targetYear, targetMonth, 1).lengthOfMonth()
                     val actualDay = min(targetDay, maxDay)
@@ -176,6 +180,15 @@ object ReminderScheduler {
     // Schedules the next chronological alarm from all active reminders
     fun scheduleNextAlarm(context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+        
+        // Exact Alarm Permission Check - 2A
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (!alarmManager.canScheduleExactAlarms()) {
+                Log.d(TAG, "Cannot schedule exact alarms. Exact alarm permission is not granted.")
+                return
+            }
+        }
+
         val database = ReminderDatabase.getDatabase(context)
 
         CoroutineScope(Dispatchers.IO).launch {
@@ -187,7 +200,7 @@ object ReminderScheduler {
             }
 
             var earliestDateTime: LocalDateTime? = null
-            var earliestReminders = mutableListOf<Reminder>()
+            val earliestReminders = mutableListOf<Reminder>()
 
             val now = LocalDateTime.now()
 
@@ -212,8 +225,8 @@ object ReminderScheduler {
             val triggerMs = targetTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
             Log.d(TAG, "Scheduling next alarm for $targetTime ($triggerMs ms) for reminders: ${earliestReminders.map { it.title }}")
 
-            val intent = Intent(context, ReminderReceiver::class.java).apply {
-                action = "com.example.ACTION_TRIGGER_NOTIFICATION"
+            val intent = Intent(context, com.example.receiver.ReminderReceiver::class.java).apply {
+                action = "com.tamilcalendar.REMINDER_ALARM"
                 putExtra("TRIGGER_TIME_EPOCH", triggerMs)
             }
 
@@ -224,21 +237,26 @@ object ReminderScheduler {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (alarmManager.canScheduleExactAlarms()) {
-                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
-                } else {
-                    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
-                }
+            // Fix AlarmManager Scheduling - 2C
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerMs,
+                    pendingIntent
+                )
             } else {
-                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
+                alarmManager.setExact(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerMs,
+                    pendingIntent
+                )
             }
         }
     }
 
     private fun cancelAllAlarms(context: Context, alarmManager: AlarmManager) {
-        val intent = Intent(context, ReminderReceiver::class.java).apply {
-            action = "com.example.ACTION_TRIGGER_NOTIFICATION"
+        val intent = Intent(context, com.example.receiver.ReminderReceiver::class.java).apply {
+            action = "com.tamilcalendar.REMINDER_ALARM"
         }
         val pendingIntent = PendingIntent.getBroadcast(
             context,

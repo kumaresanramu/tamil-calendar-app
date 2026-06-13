@@ -14,6 +14,7 @@ data class Reminder(
     val title: String,
     val description: String = "",
     val type: String, // "TAMIL", "ENGLISH", "MOON", "CUSTOM"
+    val isSystemReminder: Boolean = false,
     
     // Tamil date (needed for TAMIL type)
     val tamilMonth: Int? = null, // 1 to 12
@@ -31,7 +32,11 @@ data class Reminder(
     val reminderTime: String = "08:00", // "HH:mm"
     val repeatSetting: String = "YEARLY", // "DAILY", "WEEKLY", "MONTHLY", "YEARLY", "ONE_TIME"
     val remindBeforeDays: Int = 0, // 0, 1, or 2 days
-    val isEnabled: Boolean = true
+    val isEnabled: Boolean = true,
+    
+    val isCompleted: Boolean = false,
+    val completedAt: Long? = null,
+    val repeatType: String = "ONCE" // ONCE / DAILY / WEEKLY / MONTHLY / YEARLY
 )
 
 @Dao
@@ -54,11 +59,25 @@ interface ReminderDao {
     @Query("SELECT * FROM reminders WHERE id = :id LIMIT 1")
     suspend fun getReminderById(id: Int): Reminder?
 
-    @Query("SELECT * FROM reminders WHERE isEnabled = 1")
+    @Query("SELECT * FROM reminders WHERE isEnabled = 1 AND isCompleted = 0")
     suspend fun getActiveReminders(): List<Reminder>
+
+    @Query("UPDATE reminders SET isCompleted = 1, completedAt = :completedAt WHERE id = :id")
+    suspend fun markAsCompletedInternal(id: Int, completedAt: Long)
+
+    @Transaction
+    suspend fun markAsCompleted(id: Int) {
+        markAsCompletedInternal(id, System.currentTimeMillis())
+    }
+
+    @Query("DELETE FROM reminders WHERE id = :id AND isCompleted = 1")
+    suspend fun deleteCompleted(id: Int)
+
+    @Query("SELECT COUNT(*) FROM reminders WHERE isSystemReminder = 0")
+    suspend fun getCustomReminderCount(): Int
 }
 
-@Database(entities = [Reminder::class], version = 1, exportSchema = false)
+@Database(entities = [Reminder::class], version = 3, exportSchema = false)
 abstract class ReminderDatabase : RoomDatabase() {
     abstract fun reminderDao(): ReminderDao
 
@@ -73,6 +92,7 @@ abstract class ReminderDatabase : RoomDatabase() {
                     ReminderDatabase::class.java,
                     "tamil_calendar_database"
                 )
+                .fallbackToDestructiveMigration()
                 .addCallback(DatabaseCallback(context))
                 .build()
                 INSTANCE = instance
@@ -91,110 +111,118 @@ abstract class ReminderDatabase : RoomDatabase() {
                         // 1. Thai Pongal
                         dao.insertReminder(
                             Reminder(
-                                title = "Thai Pongal / தைப்பொங்கல்",
+                                title = "Thai Pongal",
                                 description = "Traditional Tamil harvest festival starting the Thai month.",
                                 type = "TAMIL",
                                 tamilMonth = 10,
                                 tamilDate = 1,
                                 repeatSetting = "YEARLY",
                                 remindBeforeDays = 0,
-                                isEnabled = true
+                                isEnabled = true,
+                                isSystemReminder = true
                             )
                         )
                         
-                        // 2. Tamil New Year / Puthandu
+                        // 2. Tamil New Year - Puthandu
                         dao.insertReminder(
                             Reminder(
-                                title = "Tamil New Year / தமிழ்ப்புத்தாண்டு",
+                                title = "Tamil New Year - Puthandu",
                                 description = "The start of the Tamil year on Chithirai 1.",
                                 type = "TAMIL",
                                 tamilMonth = 1,
                                 tamilDate = 1,
                                 repeatSetting = "YEARLY",
                                 remindBeforeDays = 0,
-                                isEnabled = true
+                                isEnabled = true,
+                                isSystemReminder = true
                             )
                         )
 
-                        // 3. Aadi 1
+                        // 3. Aadi 1 - Aadi Pirappu
                         dao.insertReminder(
                             Reminder(
-                                title = "Aadi 1 / ஆடி மாதப்பிறப்பு",
+                                title = "Aadi 1 - Aadi Pirappu",
                                 description = "First day of the holy month Aadi.",
                                 type = "TAMIL",
                                 tamilMonth = 4,
                                 tamilDate = 1,
                                 repeatSetting = "YEARLY",
                                 remindBeforeDays = 0,
-                                isEnabled = true
+                                isEnabled = true,
+                                isSystemReminder = true
                             )
                         )
 
-                        // 4. Aadi 18
+                        // 4. Aadi 18 - Aadi Perukku
                         dao.insertReminder(
                             Reminder(
-                                title = "Aadi Perukku / ஆடிப்பெருக்கு",
+                                title = "Aadi 18 - Aadi Perukku",
                                 description = "Tamil festival of water/prosperity (Aadi 18).",
                                 type = "TAMIL",
                                 tamilMonth = 4,
                                 tamilDate = 18,
                                 repeatSetting = "YEARLY",
                                 remindBeforeDays = 0,
-                                isEnabled = true
+                                isEnabled = true,
+                                isSystemReminder = true
                             )
                         )
 
-                        // 5. Karthikai Deepam (Karthikai Full Moon)
+                        // 5. Karthikai Deepam
                         dao.insertReminder(
                             Reminder(
-                                title = "Karthikai Deepam / கார்த்திகை தீபம்",
+                                title = "Karthikai Deepam",
                                 description = "Festival of thousands of lights under Karthikai Full Moon.",
                                 type = "MOON",
                                 moonPhaseType = "POURNAMI",
                                 tamilMonth = 8, // Karthikai month
                                 repeatSetting = "YEARLY",
                                 remindBeforeDays = 0,
-                                isEnabled = true
+                                isEnabled = true,
+                                isSystemReminder = true
                             )
                         )
 
-                        // 6. Diwali (Aippasi Amavasai)
+                        // 6. Diwali
                         dao.insertReminder(
                             Reminder(
-                                title = "Diwali / தீபாவளி",
+                                title = "Diwali",
                                 description = "Festival of lights on Aippasi month New Moon.",
                                 type = "MOON",
                                 moonPhaseType = "AMAVASAI",
                                 tamilMonth = 7, // Aippasi month
                                 repeatSetting = "YEARLY",
                                 remindBeforeDays = 0,
-                                isEnabled = true
+                                isEnabled = true,
+                                isSystemReminder = true
                             )
                         )
 
-                        // 7. Every Pournami (Full Moon day)
+                        // 7. Pournami - Full Moon
                         dao.insertReminder(
                             Reminder(
-                                title = "Every Pournami / பௌர்ணமி",
+                                title = "Pournami - Full Moon",
                                 description = "Monthly Full Moon day reminders.",
                                 type = "MOON",
                                 moonPhaseType = "POURNAMI",
                                 repeatSetting = "MONTHLY",
                                 remindBeforeDays = 0,
-                                isEnabled = true
+                                isEnabled = true,
+                                isSystemReminder = true
                             )
                         )
 
-                        // 8. Every Amavasai (New Moon day)
+                        // 8. Amavasai - New Moon
                         dao.insertReminder(
                             Reminder(
-                                title = "Every Amavasai / அமாவாசை",
+                                title = "Amavasai - New Moon",
                                 description = "Monthly New Moon day reminders.",
                                 type = "MOON",
                                 moonPhaseType = "AMAVASAI",
                                 repeatSetting = "MONTHLY",
                                 remindBeforeDays = 0,
-                                isEnabled = true
+                                isEnabled = true,
+                                isSystemReminder = true
                             )
                         )
 

@@ -27,10 +27,22 @@ class MainActivity : ComponentActivity() {
         }
 
         enableEdgeToEdge()
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        androidx.core.view.WindowInsetsControllerCompat(window, window.decorView)
+            .isAppearanceLightStatusBars = true // true = dark icons on light header (which matches our white calendar background)
+
         setContent {
             MyApplicationTheme {
                 TamilCalendarMainScreen(viewModel = viewModel)
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.updatePermissionStates(this)
+        // Also fire next alarm reschedule to pick up any exact alarm permission grant
+        ReminderScheduler.scheduleNextAlarm(this)
     }
 }
