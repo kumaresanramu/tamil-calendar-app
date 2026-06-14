@@ -1,70 +1,212 @@
-# 📅 Tamil Calendar (தமிழ் நாட்காட்டி)
+# 🗓️ தமிழ் நாட்காட்டி — Tamil Calendar App
 
-An elegant, native, and completely offline-first Tamil Calendar application built for Android with modern Material Design 3 and Jetpack Compose. Designed to bring the traditional Tamil panchangam (அல்மனாக்) directly into your pocket with robust local tools.
+<p align="center">
+  <img src="screenshots/icon.png" width="100"/>
+</p>
 
----
+<p align="center">
+  A feature-rich offline Tamil Calendar Android app 
+  displaying English & Tamil dates side by side with 
+  smart reminders, Rahu Kalam, Chit Fund tracker and more.
+</p>
 
-## 🚀 Instant Download & Sideloading
-The latest release-ready Android application package is compiled and available for immediate installation:
-
-👉 **[Download TamilCalendar.apk](./releases/latest/TamilCalendar.apk)**
-
-*Sideloading Instructions:*
-1. Click the link above to fetch the `.apk` file.
-2. Transfer it to your Android device or inspect it directly via the Streaming Emulator.
-3. Enable "Install from Unknown Sources" in your Android system security settings.
-4. Open the file and click **Install**.
-
----
-
-## 🌟 Key Features
-
-### 1. Traditional Almanac & Calendar (நாள்காட்டி)
-*   **Dual Calendars:** Perfectly pairs the Gregorian Calendar with the Tamil Calendar (Chithirai/சித்திரை to Panguni/பங்குனி).
-*   **Auspicious & Astronomical Timings:** Displays Nakshatra (நட்சத்திரம்), Tithi (திதி), Yoga, and Karana for any selected date.
-*   **Panchangam Engine:** Computes Rahu Kalam (ராகு காலம்), Yamagandam (எமகண்டம்), and Gulika Kalam (குளிகை காலம்) dynamically based on local sunrise and sunset timings.
-*   **Special Days & Festivals:** Fully highlights monthly auspicious events such as Pournami (Full Moon), Amavasai (New Moon), Ekadashi, and Pradosham.
-
-### 2. Multi-Criteria Muhurtham Finder (முகூர்த்தம் தேடி)
-*   Search and filter dynamic date ranges to discover highly auspicious marriage, housewarming, or business commencement hours (ஆத்த காலங்கள்) without requiring active internet connectivity.
-*   Displays **Abhijit Muhurtham** (அபிஜித் முகூர்த்தம்) and rules out overlaps with adverse planetary hours.
-
-### 3. Smart Local Reminders (நினைவூட்டல்கள்)
-*   Schedule alerts for specific days or recurring holy intervals (e.g., automated alerts 1 day before every Pradosham or Ekadashi).
-*   Powered by modern Android **AlarmManager** and local wake locks for highly accurate, battery-conscious local scheduling.
-
-### 4. Chit Fund & Dividend Tracker (சீட்டு சேமிப்பு)
-*   Keep your localized savings organized! Set monthly contribution plans, track monthly auction winners, calculate net dividend returns, and record your payout months.
-*   Computes compound ROI and total contributions dynamically.
-
-### 5. Family Birthday Planner (பிறந்தநாள் கேலெண்டர்)
-*   Register dear ones with their Gregorian and computed astronomical Nakshatra.
-*   Issues warm notifications on their birthdays automatically, keeping families close.
+<p align="center">
+  <img src="screenshots/calendar.jpg" width="200"/>
+  <img src="screenshots/reminders.jpg" width="200"/>
+  <img src="screenshots/chitfund.jpg" width="200"/>
+</p>
 
 ---
 
-## 🛠️ Devops & Resiliency Features
+## 📲 Download & Install APK
 
-This app is engineered with high production-grade stability and modern Android safety guardrails:
+### Step 1 — Download the APK
+👉 **[Download Latest APK](../../releases/latest)**
 
-### Exception Protection & Diagnostics Report
-*   **Crash Safeguard Matrix:** Configured with a default Uncaught Exception Handler that intercepts random OS runtime faults on a real device.
-*   **System Notifications on Crash:** Instead of silently closing, the app instantly pops a high-priority system notification indicating it has safely recovered.
-*   **Interactive Diagnostic Modal:** On relaunch, an interactive diagnostics report overlay allows the user to immediately review the exact stack trace and copy it onto their clipboard with a single tap for remote developer diagnostics.
-
-### Android 12+ Background Stability & Permissions
-*   **Exact Alarm Scheduling (`SCHEDULE_EXACT_ALARM`):** Requests system permission gracefully on launch to prevent modern Android restrictions (introduced in Android 12) from blocking background reminders.
-*   **Instant Notification Prompts:** Prompts for Android 13+ `POST_NOTIFICATIONS` runtime authorization during onboarding so you never miss a holy moon phase event.
-
-### Production Release Protections
-*   **Large Heap Memory Allocation (`largeHeap="true"`):** Enables expanded RAM availability inside `AndroidManifest.xml` to prevent out-of-memory overhead during extensive panchangam date generations.
-*   **Engineered Proguard/R8 Rules:** Custom obfuscation configurations directly preserve Room Database classes, JSON serialization adapters, desugared time reflection parameters, and helper models ensuring 100% stable production builds.
+Click the link above → Under "Assets" → 
+tap **tamil-calendar.apk** to download.
 
 ---
 
-## 🏗️ Technical Architecture
+## 🔧 How to Install (First Time Only)
 
-*   **UI Layer:** 100% declarative UI built with **Jetpack Compose** and official **Material Design 3 (M3)** design tokens.
-*   **Data Persistence:** local SQLite querying handled by **Room Database** with KSP-supported compile-time verification.
-*   **Architecture Pattern:** Clean MVVM (Model-View-ViewModel) decoupling data flows from visual view states via thread-safe Kotlin Coroutines and asynchronous StateFlow stream publishers.
-*   **Core Math:** Astronomical algorithms to compute Julian date calendars, Moon age phases, and sidereal Nakshatras offline.
+Android blocks apps from outside Play Store 
+by default. Follow these steps once:
+
+### Step 1 — Enable Unknown Sources
+
+**Android 8.0 and above:**
+```
+Settings → Apps → Special App Access 
+→ Install Unknown Apps
+→ Select your Browser or File Manager
+→ Toggle ON "Allow from this source"
+```
+
+**Samsung phones:**
+```
+Settings → Biometrics and Security
+→ Install Unknown Apps
+→ Select Browser or My Files
+→ Toggle ON
+```
+
+**Older Android (below 8.0):**
+```
+Settings → Security
+→ Toggle ON "Unknown Sources"
+→ Tap OK on the warning
+```
+
+### Step 2 — Open the Downloaded APK
+```
+Open your Downloads folder
+→ Tap "tamil-calendar.apk"
+→ Tap "Install"
+→ Tap "Open" when done
+```
+
+### Step 3 — Allow Notification Permission
+```
+When app opens → Tap "Allow" 
+when asked for notification permission
+(Required for reminders to work)
+```
+
+### Step 4 — Allow Exact Alarms (Important!)
+```
+When app asks for alarm permission
+→ Tap "Allow" or "Permit"
+(Required for reminders to fire on time)
+```
+
+✅ **Done! App is ready to use.**
+
+---
+
+## 🔔 After Installing — Allow Notifications
+
+If reminders are not working:
+```
+Settings → Apps → Tamil Calendar
+→ Notifications → Allow All
+```
+
+---
+
+## ✨ Features
+
+| Feature | Details |
+|---|---|
+| 📅 Calendar | English + Tamil dates in every cell |
+| 🌕 Moon Days | Pournami & Amavasai highlighted |
+| 🎉 Festivals | Tamil festivals pre-loaded |
+| ⭐ Nakshatra | Daily star displayed in calendar |
+| 🔴 Rahu Kalam | Inauspicious time shown daily |
+| 🔔 Reminders | Tamil date / English date / Moon phase |
+| 🌅 Morning Briefing | Daily Tamil calendar summary notification |
+| 👨‍👩‍👧 Family Birthdays | Birthday reminders with birth star |
+| 💰 Chit Fund Tracker | Track installments with Tamil chit logic |
+| 🔮 Muhurtham Finder | Find auspicious dates for events |
+| 📆 Yearly View | All 12 months overview |
+| 📴 Offline | Works 100% without internet |
+| 🌙 Dark Mode | Full dark mode support |
+
+---
+
+## 📱 Requirements
+
+```
+Android 8.0 (Oreo) or higher
+Minimum 50 MB free storage
+```
+
+---
+
+## 🛡️ Permissions Used
+
+| Permission | Why |
+|---|---|
+| POST_NOTIFICATIONS | To send reminders |
+| SCHEDULE_EXACT_ALARM | For on-time reminders |
+| RECEIVE_BOOT_COMPLETED | Reschedule after reboot |
+| VIBRATE | Notification vibration |
+
+> ✅ No internet permission — 
+> your data never leaves your phone.
+
+---
+
+## ❓ FAQ
+
+**Q: Reminders not working?**
+```
+Settings → Apps → Tamil Calendar
+→ Battery → Allow Background Activity
+→ Notifications → Allow
+```
+
+**Q: App not installing?**
+```
+Make sure "Install Unknown Apps" 
+is enabled for your browser or 
+file manager (see steps above)
+```
+
+**Q: App crashes on open?**
+```
+Uninstall and reinstall the APK
+Make sure Android 8.0 or higher
+```
+
+**Q: Notification permission missing?**
+```
+Settings → Apps → Tamil Calendar
+→ Permissions → Allow Notifications
+```
+
+---
+
+## 🚀 How to Upload APK to GitHub Releases
+
+1. Go to your GitHub repo
+2. Click **"Releases"** on the right side
+3. Click **"Create a new release"**
+4. Tag version: `v1.0.0`
+5. Title: `Tamil Calendar v1.0 — First Release`
+6. Drag and drop your `.apk` file
+7. Click **"Publish release"**
+
+Users can then download directly from 
+the Releases page.
+
+---
+
+## 🔗 Built With
+
+- Kotlin + Jetpack Compose
+- Material Design 3
+- Room Database
+- AlarmManager
+- MVVM Architecture
+- 100% Offline
+
+---
+
+## 🙏 Credits
+
+Built using **Google AI Studio** without 
+writing a single line of code manually.
+
+---
+
+## 📄 License
+
+MIT License — Free to use and share.
+
+---
+
+## ⭐ Found it useful?
+
+Star this repo and share with your 
+Tamil community! 🙏
