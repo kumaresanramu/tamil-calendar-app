@@ -1,21 +1,70 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# 📅 Tamil Calendar (தமிழ் நாட்காட்டி)
 
-# Run and deploy your AI Studio app
+An elegant, native, and completely offline-first Tamil Calendar application built for Android with modern Material Design 3 and Jetpack Compose. Designed to bring the traditional Tamil panchangam (அல்மனாக்) directly into your pocket with robust local tools.
 
-This contains everything you need to run your app locally.
+---
 
-View your app in AI Studio: https://ai.studio/apps/e6ad5d4f-64e1-4e2f-bd39-ead8a03f32da
+## 🚀 Instant Download & Sideloading
+The latest release-ready Android application package is compiled and available for immediate installation:
 
-## Run Locally
+👉 **[Download TamilCalendar.apk](./releases/latest/TamilCalendar.apk)**
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+*Sideloading Instructions:*
+1. Click the link above to fetch the `.apk` file.
+2. Transfer it to your Android device or inspect it directly via the Streaming Emulator.
+3. Enable "Install from Unknown Sources" in your Android system security settings.
+4. Open the file and click **Install**.
 
+---
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
+## 🌟 Key Features
+
+### 1. Traditional Almanac & Calendar (நாள்காட்டி)
+*   **Dual Calendars:** Perfectly pairs the Gregorian Calendar with the Tamil Calendar (Chithirai/சித்திரை to Panguni/பங்குனி).
+*   **Auspicious & Astronomical Timings:** Displays Nakshatra (நட்சத்திரம்), Tithi (திதி), Yoga, and Karana for any selected date.
+*   **Panchangam Engine:** Computes Rahu Kalam (ராகு காலம்), Yamagandam (எமகண்டம்), and Gulika Kalam (குளிகை காலம்) dynamically based on local sunrise and sunset timings.
+*   **Special Days & Festivals:** Fully highlights monthly auspicious events such as Pournami (Full Moon), Amavasai (New Moon), Ekadashi, and Pradosham.
+
+### 2. Multi-Criteria Muhurtham Finder (முகூர்த்தம் தேடி)
+*   Search and filter dynamic date ranges to discover highly auspicious marriage, housewarming, or business commencement hours (ஆத்த காலங்கள்) without requiring active internet connectivity.
+*   Displays **Abhijit Muhurtham** (அபிஜித் முகூர்த்தம்) and rules out overlaps with adverse planetary hours.
+
+### 3. Smart Local Reminders (நினைவூட்டல்கள்)
+*   Schedule alerts for specific days or recurring holy intervals (e.g., automated alerts 1 day before every Pradosham or Ekadashi).
+*   Powered by modern Android **AlarmManager** and local wake locks for highly accurate, battery-conscious local scheduling.
+
+### 4. Chit Fund & Dividend Tracker (சீட்டு சேமிப்பு)
+*   Keep your localized savings organized! Set monthly contribution plans, track monthly auction winners, calculate net dividend returns, and record your payout months.
+*   Computes compound ROI and total contributions dynamically.
+
+### 5. Family Birthday Planner (பிறந்தநாள் கேலெண்டர்)
+*   Register dear ones with their Gregorian and computed astronomical Nakshatra.
+*   Issues warm notifications on their birthdays automatically, keeping families close.
+
+---
+
+## 🛠️ Devops & Resiliency Features
+
+This app is engineered with high production-grade stability and modern Android safety guardrails:
+
+### Exception Protection & Diagnostics Report
+*   **Crash Safeguard Matrix:** Configured with a default Uncaught Exception Handler that intercepts random OS runtime faults on a real device.
+*   **System Notifications on Crash:** Instead of silently closing, the app instantly pops a high-priority system notification indicating it has safely recovered.
+*   **Interactive Diagnostic Modal:** On relaunch, an interactive diagnostics report overlay allows the user to immediately review the exact stack trace and copy it onto their clipboard with a single tap for remote developer diagnostics.
+
+### Android 12+ Background Stability & Permissions
+*   **Exact Alarm Scheduling (`SCHEDULE_EXACT_ALARM`):** Requests system permission gracefully on launch to prevent modern Android restrictions (introduced in Android 12) from blocking background reminders.
+*   **Instant Notification Prompts:** Prompts for Android 13+ `POST_NOTIFICATIONS` runtime authorization during onboarding so you never miss a holy moon phase event.
+
+### Production Release Protections
+*   **Large Heap Memory Allocation (`largeHeap="true"`):** Enables expanded RAM availability inside `AndroidManifest.xml` to prevent out-of-memory overhead during extensive panchangam date generations.
+*   **Engineered Proguard/R8 Rules:** Custom obfuscation configurations directly preserve Room Database classes, JSON serialization adapters, desugared time reflection parameters, and helper models ensuring 100% stable production builds.
+
+---
+
+## 🏗️ Technical Architecture
+
+*   **UI Layer:** 100% declarative UI built with **Jetpack Compose** and official **Material Design 3 (M3)** design tokens.
+*   **Data Persistence:** local SQLite querying handled by **Room Database** with KSP-supported compile-time verification.
+*   **Architecture Pattern:** Clean MVVM (Model-View-ViewModel) decoupling data flows from visual view states via thread-safe Kotlin Coroutines and asynchronous StateFlow stream publishers.
+*   **Core Math:** Astronomical algorithms to compute Julian date calendars, Moon age phases, and sidereal Nakshatras offline.
