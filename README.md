@@ -1,20 +1,54 @@
-# 📅 Tamil Calendar (தமிழ் நாட்காட்டி)
+# 🗓️ தமிழ் நாட்காட்டி — Tamil Calendar App
 
-An elegant, native, and completely offline-first Tamil Calendar application built for Android with modern Material Design 3 and Jetpack Compose. Designed to bring the traditional Tamil panchangam (அல்மனாக்) directly into your pocket with robust local tools.
+<p align="center">
+  <img src="screenshots/icon.jpeg" 
+       width="100" 
+       alt="Tamil Calendar Icon"/>
+</p>
+
+<p align="center">
+  <b>A feature-rich offline Tamil Calendar 
+  for Android</b><br/>
+  Displays English & Tamil dates side by side 
+  with smart reminders, Rahu Kalam, 
+  Chit Fund tracker and more.
+</p>
+
+<p align="center">
+  <a href="https://github.com/kumaresanramu/tamil-calendar-app/releases/download/V1.0.0/Tamil.Calendar.apk">
+    <img src="https://img.shields.io/badge/Download-APK-brightgreen?style=for-the-badge&logo=android" 
+         alt="Download APK"/>
+  </a>
+</p>
 
 ---
 
-## 🚀 Instant Download & Sideloading
-The latest release-ready Android application package is compiled and available for immediate installation. Depending on your editor's sidebar filtering, you can access the APK from either of the following paths:
+## 📲 Download App
 
-*   📂 **Root Releases Folder:** [releases/latest/TamilCalendar.apk](./releases/latest/TamilCalendar.apk)
-*   📂 **Inside App Module Folder:** [app/releases/latest/TamilCalendar.apk](./app/releases/latest/TamilCalendar.apk)
+### 👉 [Click Here to Download APK](https://github.com/kumaresanramu/tamil-calendar-app/releases/download/V1.0.0/Tamil.Calendar.apk)
 
-*Sideloading Instructions:*
-1. Locate and download the `TamilCalendar.apk` file from either of the paths above.
-2. Transfer it to your target Android device (or view/interact with the running build directly in your Web Emulator).
-3. If prompted by the operating system, enable "Install from Unknown Sources" in your Android system security settings.
-4. Open the file and click **Install**.
+---
+
+## 📱 Screenshots
+
+<p align="center">
+  <img src="screenshots/calendar.jpeg" 
+       width="200" alt="Calendar View"/>
+  &nbsp;&nbsp;
+  <img src="screenshots/day-detail.jpeg" 
+       width="200" alt="Day Detail"/>
+  &nbsp;&nbsp;
+  <img src="screenshots/yearly-view.jpeg" 
+       width="200" alt="Yearly View"/>
+</p>
+
+<p align="center">
+  <img src="screenshots/reminders.jpeg" 
+       width="200" alt="Reminders"/>
+  &nbsp;&nbsp;
+  <img src="screenshots/chit-fund.jpeg" 
+       width="200" alt="Chit Fund"/>
+</p>
 
 ---
 
@@ -69,3 +103,180 @@ This app is engineered with high production-grade stability and modern Android s
 *   **Data Persistence:** local SQLite querying handled by **Room Database** with KSP-supported compile-time verification.
 *   **Architecture Pattern:** Clean MVVM (Model-View-ViewModel) decoupling data flows from visual view states via thread-safe Kotlin Coroutines and asynchronous StateFlow stream publishers.
 *   **Core Math:** Astronomical algorithms to compute Julian date calendars, Moon age phases, and sidereal Nakshatras offline.
+---
+## 🔧 How to Install
+
+### Step 1 — Download APK
+👉 Tap this link on your Android phone:
+
+**[Download Tamil Calendar APK](https://github.com/kumaresanramu/tamil-calendar-app/releases/download/V1.0.0/Tamil.Calendar.apk)**
+
+---
+
+### Step 2 — Allow Unknown Sources
+
+**Samsung phones:**
+```
+Settings → Biometrics and Security
+→ Install Unknown Apps
+→ Select your Browser (Chrome/Samsung)
+→ Toggle ON "Allow from this source"
+```
+
+**Other Android phones:**
+```
+Settings → Apps → Special App Access
+→ Install Unknown Apps
+→ Select your Browser
+→ Toggle ON "Allow from this source"
+```
+
+**Older Android (below 8.0):**
+```
+Settings → Security
+→ Toggle ON "Unknown Sources"
+→ Tap OK
+```
+
+---
+
+### Step 3 — Install
+```
+Open Downloads folder on your phone
+→ Tap "Tamil.Calendar.apk"
+→ Tap "Install"
+→ Tap "Open"
+```
+
+---
+
+### Step 4 — Allow Permissions
+```
+✅ Allow Notifications 
+   (for reminders to work)
+
+✅ Allow Exact Alarms
+   (for on-time reminders)
+```
+
+---
+
+### ✅ Done! App is ready to use.
+
+---
+
+## ⚙️ If Reminders Not Working
+
+```
+Settings → Apps → Tamil Calendar
+→ Notifications → Allow All
+→ Battery → Unrestricted
+```
+
+---
+
+## ✨ Features
+
+| Feature | Details |
+|---|---|
+| 📅 Calendar | English + Tamil dates in every cell |
+| 🌕 Moon Days | Pournami & Amavasai highlighted |
+| ⭐ Nakshatra | Daily star shown in calendar |
+| 🔴 Rahu Kalam | Inauspicious time shown daily |
+| 🎉 Festivals | Tamil festivals pre-loaded |
+| 🔔 Reminders | Tamil date / English date / Moon phase |
+| 🌅 Morning Briefing | Daily Tamil calendar summary at 7 AM |
+| 👨‍👩‍👧 Family Birthdays | Birthday reminder with birth star |
+| 💰 Chit Fund | Track installments Tamil chit style |
+| 🔮 Muhurtham | Find auspicious dates for events |
+| 📆 Yearly View | All 12 months overview |
+| 📴 Offline | 100% works without internet |
+| 🌙 Dark Mode | Full dark mode support |
+
+---
+
+## 📋 Requirements
+
+```
+✅ Android 7.0 or higher
+✅ 50 MB free storage
+✅ No internet needed
+```
+
+---
+
+## 🛡️ Permissions
+
+| Permission | Reason |
+|---|---|
+| Notifications | Send reminders |
+| Exact Alarm | On-time reminder delivery |
+| Boot Completed | Reschedule after phone restart |
+| Vibrate | Notification vibration |
+
+> 🔒 No internet permission — 
+> your data never leaves your phone
+
+---
+
+## ❓ FAQ
+
+**App not installing?**
+```
+Enable "Install Unknown Apps" 
+for your browser in Settings
+(See Step 2 above)
+```
+
+**Reminders not firing?**
+```
+Settings → Apps → Tamil Calendar
+→ Battery → Select "Unrestricted"
+→ Notifications → Allow
+```
+
+**Tamil text showing as boxes?**
+```
+Update your phone's Android version
+or enable Tamil language in Settings
+```
+
+**App crashing?**
+```
+Uninstall → Restart phone → 
+Reinstall APK
+Make sure Android 7.0 or above
+```
+
+---
+
+## 🙏 Credits
+
+Built using **Google AI Studio** 
+without writing a single line of code.
+
+Special thanks to **@gotoark** for 
+encouraging me to try AI Studio.
+
+---
+
+## 📄 License
+
+MIT License — Free to use and share
+
+---
+
+## ⭐ Support
+
+If this app helped you:
+- ⭐ Star this repository
+- 📤 Share with your Tamil community
+- 🐛 Report issues in the Issues tab
+
+---
+
+<p align="center">
+  Made with ❤️ for Tamil community worldwide
+  <br/>
+  தமிழர்களுக்காக தமிழர்களால் 🙏
+</p>
