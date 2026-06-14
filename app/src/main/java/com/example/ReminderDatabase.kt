@@ -75,9 +75,41 @@ interface ReminderDao {
 
     @Query("SELECT COUNT(*) FROM reminders WHERE isSystemReminder = 0")
     suspend fun getCustomReminderCount(): Int
+
+    // Family Members
+    @Query("SELECT * FROM family_members ORDER BY id DESC")
+    fun getAllFamilyMembers(): Flow<List<FamilyMember>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertFamilyMember(member: FamilyMember): Long
+
+    @Update
+    suspend fun updateFamilyMember(member: FamilyMember)
+
+    @Delete
+    suspend fun deleteFamilyMember(member: FamilyMember)
+
+    @Query("DELETE FROM family_members WHERE id = :id")
+    suspend fun deleteFamilyMemberById(id: Int)
+
+    // Chit Funds
+    @Query("SELECT * FROM chit_funds ORDER BY id DESC")
+    fun getAllChitFunds(): Flow<List<ChitFund>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertChitFund(chit: ChitFund): Long
+
+    @Update
+    suspend fun updateChitFund(chit: ChitFund)
+
+    @Delete
+    suspend fun deleteChitFund(chit: ChitFund)
+
+    @Query("DELETE FROM chit_funds WHERE id = :id")
+    suspend fun deleteChitFundById(id: Int)
 }
 
-@Database(entities = [Reminder::class], version = 3, exportSchema = false)
+@Database(entities = [Reminder::class, FamilyMember::class, ChitFund::class], version = 4, exportSchema = false)
 abstract class ReminderDatabase : RoomDatabase() {
     abstract fun reminderDao(): ReminderDao
 

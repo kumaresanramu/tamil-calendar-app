@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import com.example.receiver.MorningBriefingReceiver
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -143,6 +144,81 @@ fun TamilCalendarMainScreen(viewModel: TamilCalendarViewModel) {
 
     val context = LocalContext.current
     var showExactPermissionDialog by remember { mutableStateOf(false) }
+    var crashLogToShow by remember { mutableStateOf<String?>(null) }
+
+    // Check for crash logs on launch
+    LaunchedEffect(Unit) {
+        try {
+            val crashPrefs = context.getSharedPreferences("crash_logs", Context.MODE_PRIVATE)
+            val trace = crashPrefs.getString("last_crash_trace", null)
+            if (trace != null) {
+                crashLogToShow = trace
+            }
+        } catch (e: Exception) {
+            Log.e("TamilCalendarUi", "Error reading crash log on startup", e)
+        }
+    }
+
+    if (crashLogToShow != null) {
+        val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+        AlertDialog(
+            onDismissRequest = { crashLogToShow = null },
+            title = { Text("Diagnostics Report 🛠️", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        "The application recovered from an unexpected error on real device. We saved the trace below to assist debugging:",
+                        fontSize = 13.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                            .background(Color(0xFFEEEEEE), RoundedCornerShape(4.dp))
+                            .verticalScroll(rememberScrollState())
+                            .padding(8.dp)
+                    ) {
+                        Text(
+                            text = crashLogToShow ?: "",
+                            style = TextStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 11.sp),
+                            color = Color.Black
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        try {
+                            clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(crashLogToShow ?: ""))
+                            Toast.makeText(context, "Copied log to clipboard!", Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {}
+                        
+                        // Clear crash log
+                        val crashPrefs = context.getSharedPreferences("crash_logs", Context.MODE_PRIVATE)
+                        crashPrefs.edit().remove("last_crash_trace").apply()
+                        crashLogToShow = null
+                    }
+                ) {
+                    Text("Copy & Clear")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        // Clear crash log and dismiss
+                        val crashPrefs = context.getSharedPreferences("crash_logs", Context.MODE_PRIVATE)
+                        crashPrefs.edit().remove("last_crash_trace").apply()
+                        crashLogToShow = null
+                    }
+                ) {
+                    Text("Clear & Close")
+                }
+            }
+        )
+    }
 
     // Logic for Exact Alarm Check Dialog - Bug Fix 2A
     LaunchedEffect(isExactAlarmGranted) {
@@ -324,11 +400,16 @@ fun CalendarTabScreen(viewModel: TamilCalendarViewModel) {
     val reminders by viewModel.allReminders.collectAsStateWithLifecycle()
     val reminderDates by viewModel.reminderDates.collectAsStateWithLifecycle()
     val calendarCellsState by viewModel.calendarCells.collectAsStateWithLifecycle()
+    val defaultReminderTime by viewModel.defaultReminderTime.collectAsStateWithLifecycle()
+    val showRahuKalam by viewModel.showRahuKalam.collectAsStateWithLifecycle()
+    val rahuKalamAlert by viewModel.rahuKalamAlert.collectAsStateWithLifecycle()
 
     var selectedDayDetails by remember { mutableStateOf<TamilDate?>(null) }
+    var showAddDialogForDate by remember { mutableStateOf<LocalDate?>(null) }
     var touchXOffset by remember { mutableStateOf(0f) }
     val context = LocalContext.current
     var showMonthPicker by remember { mutableStateOf(false) }
+    var activeSubScreen by remember { mutableStateOf<String?>(null) }
 
     // Dynamic month calculations
     val firstDayOfWeek = activeMonthDate.withDayOfMonth(1).dayOfWeek.value % 7 // 0 for Sunday
@@ -354,7 +435,59 @@ fun CalendarTabScreen(viewModel: TamilCalendarViewModel) {
         TamilCalendarHelper.getTamilDate(activeMonthDate.year, activeMonthDate.monthValue, 15)
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    var activeRahuKalamRange by remember { mutableStateOf<Pair<Long, Long>?>(null) }
+    var isRahuActiveCurrently by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            val nowVal = System.currentTimeMillis()
+            val todayDate = java.time.LocalDate.now()
+            val dayOfWeekVal = todayDate.atStartOfDay(java.time.ZoneId.systemDefault()).let {
+                val c = java.util.Calendar.getInstance()
+                c.timeInMillis = it.toInstant().toEpochMilli()
+                c.get(java.util.Calendar.DAY_OF_WEEK)
+            }
+            val (sunriseVal, sunsetVal) = TamilCalendarHelper.getTodaySunriseSunset(todayDate)
+            val rahuVal = TamilCalendarHelper.calculateRahuKalam(dayOfWeekVal, sunriseVal, sunsetVal)
+            
+            activeRahuKalamRange = rahuVal
+            isRahuActiveCurrently = nowVal in rahuVal.first..rahuVal.second
+            
+            kotlinx.coroutines.delay(15000) // check every 15 seconds
+        }
+    }
+
+    when (activeSubScreen) {
+        "YEARLY_VIEW" -> {
+            YearlyViewScreen(
+                currentYear = activeMonthDate.year,
+                onMonthSelected = { selectedDate ->
+                    viewModel.selectMonth(selectedDate)
+                    activeSubScreen = null
+                },
+                onBack = { activeSubScreen = null }
+            )
+        }
+        "MUHURTHAM_FINDER" -> {
+            MuhurthamFinderScreen(
+                viewModel = viewModel,
+                onBack = { activeSubScreen = null }
+            )
+        }
+        "BIRTHDAY_TRACKER" -> {
+            FamilyBirthdayTrackerScreen(
+                viewModel = viewModel,
+                onBack = { activeSubScreen = null }
+            )
+        }
+        "CHIT_FUND_TRACKER" -> {
+            ChitFundTrackerScreen(
+                viewModel = viewModel,
+                onBack = { activeSubScreen = null }
+            )
+        }
+        null -> {
+            Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -377,6 +510,44 @@ fun CalendarTabScreen(viewModel: TamilCalendarViewModel) {
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Rahu Kalam Active Alert Banner
+            if (rahuKalamAlert && isRahuActiveCurrently && activeRahuKalamRange != null) {
+                val startFormatted = TamilCalendarHelper.formatTimeMillis(activeRahuKalamRange!!.first)
+                val endFormatted = TamilCalendarHelper.formatTimeMillis(activeRahuKalamRange!!.second)
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+                    border = BorderStroke(1.dp, Color(0xFFD32F2F)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                        .testTag("rahu_active_banner")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "🔴",
+                            fontSize = 20.sp,
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "Rahu Kalam Active Now",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFD32F2F)
+                            )
+                            Text(
+                                text = "Ends at $endFormatted",
+                                fontSize = 12.sp,
+                                color = Color(0xFF757575)
+                            )
+                        }
+                    }
+                }
+            }
+
             // App top header - Tappable Custom Month/Year Picker - Bug Fix 10B
             Column(
                 modifier = Modifier
@@ -391,14 +562,79 @@ fun CalendarTabScreen(viewModel: TamilCalendarViewModel) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = midMonthTamilDate.tamilYearName.uppercase() + " YEAR",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF6750A4),
-                        letterSpacing = 1.sp,
-                        modifier = Modifier.testTag("tamil_year_name")
-                    )
+                    var showHeaderMenu by remember { mutableStateOf(false) }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = midMonthTamilDate.tamilYearName.uppercase() + " YEAR",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF6750A4),
+                            letterSpacing = 1.sp,
+                            modifier = Modifier.testTag("tamil_year_name")
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        
+                        // Yearly View toggle button
+                        IconButton(
+                            onClick = { activeSubScreen = "YEARLY_VIEW" },
+                            modifier = Modifier.size(24.dp).testTag("yearly_view_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DateRange,
+                                contentDescription = "Yearly View",
+                                tint = Color(0xFF6750A4),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        // More options dropdown
+                        Box {
+                            IconButton(
+                                onClick = { showHeaderMenu = true },
+                                modifier = Modifier.size(24.dp).testTag("header_menu_btn")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "Options",
+                                    tint = Color(0xFF6750A4),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showHeaderMenu,
+                                onDismissRequest = { showHeaderMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Auspicious Muhurthams 🔍") },
+                                    onClick = {
+                                        showHeaderMenu = false
+                                        activeSubScreen = "MUHURTHAM_FINDER"
+                                    },
+                                    modifier = Modifier.testTag("menu_muhurtham")
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Family Birthdays 🎂") },
+                                    onClick = {
+                                        showHeaderMenu = false
+                                        activeSubScreen = "BIRTHDAY_TRACKER"
+                                    },
+                                    modifier = Modifier.testTag("menu_birthday")
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Chit Funds 📊") },
+                                    onClick = {
+                                        showHeaderMenu = false
+                                        activeSubScreen = "CHIT_FUND_TRACKER"
+                                    },
+                                    modifier = Modifier.testTag("menu_chit")
+                                )
+                            }
+                        }
+                    }
                     
                     // Month changing arrow buttons with Long press - Bug Fix 10C
                     Row(
@@ -523,7 +759,7 @@ fun CalendarTabScreen(viewModel: TamilCalendarViewModel) {
                     .weight(1f)
             ) { targetMonthDate ->
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(0.5.dp)
                 ) {
                     val daysInMonth = targetMonthDate.lengthOfMonth()
@@ -533,7 +769,9 @@ fun CalendarTabScreen(viewModel: TamilCalendarViewModel) {
 
                     for (row in 0 until rows) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
                             horizontalArrangement = Arrangement.spacedBy(0.5.dp)
                         ) {
                             for (col in 0..6) {
@@ -558,17 +796,24 @@ fun CalendarTabScreen(viewModel: TamilCalendarViewModel) {
                                                 },
                                                 modifier = Modifier
                                                     .weight(1f)
-                                                    .testTag("day_${dayNumber}")
+                                                    .fillMaxHeight()
+                                                    .testTag("day_${dayNumber}"),
+                                                showRahuKalam = showRahuKalam
                                             )
                                         }
                                     } else {
-                                        Box(modifier = Modifier.weight(1f).height(58.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .fillMaxHeight()
+                                                .background(Color.White)
+                                        )
                                     }
                                 } else {
                                     Box(
                                         modifier = Modifier
                                             .weight(1f)
-                                            .height(58.dp)
+                                            .fillMaxHeight()
                                             .background(Color.White)
                                             .border(0.5.dp, Color(0xFFE0E0E0))
                                     )
@@ -579,20 +824,37 @@ fun CalendarTabScreen(viewModel: TamilCalendarViewModel) {
                 }
             }
 
-            // Legend Row - Bug Fix 3
+            // Legend Row - Bug Fix 3 Redesign
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 16.dp, bottom = 4.dp),
+                    .horizontalScroll(rememberScrollState())
+                    .padding(vertical = 6.dp, horizontal = 8.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "🌕 Yellow = Pournami  |  🌑 Dark = Amavasai  |  🔴 Red = Festival",
-                    fontSize = 11.sp,
-                    color = Color(0xFF757575),
-                    fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center
+                LegendItem(
+                    color = Color(0xFFFFF9C4),
+                    label = "Pournami",
+                    shape = CircleShape
+                )
+                Spacer(Modifier.width(8.dp))
+                LegendItem(
+                    color = Color(0xFF283593),
+                    label = "Amavasai",
+                    shape = CircleShape
+                )
+                Spacer(Modifier.width(8.dp))
+                LegendItem(
+                    color = Color(0xFFFF6B00),
+                    label = "Festival",
+                    shape = CircleShape
+                )
+                Spacer(Modifier.width(8.dp))
+                LegendItem(
+                    color = Color(0xFFD32F2F),
+                    label = "Rahu AM",
+                    shape = CircleShape
                 )
             }
         }
@@ -637,9 +899,9 @@ fun CalendarTabScreen(viewModel: TamilCalendarViewModel) {
         }
     }
 
-    // Day Details Dialog popup
+    // Day Details Bottom Sheet popup
     selectedDayDetails?.let { tDate ->
-        DayDetailsDialog(
+        DayDetailsBottomSheet(
             tamilDate = tDate,
             showNakshatra = showNakshatra,
             reminders = reminders.filter { reminder ->
@@ -649,8 +911,33 @@ fun CalendarTabScreen(viewModel: TamilCalendarViewModel) {
                 )
                 eventTrigger?.toLocalDate() == LocalDate.of(tDate.englishYear, tDate.englishMonth, tDate.englishDay)
             },
-            onDismiss = { selectedDayDetails = null }
+            onDismiss = { selectedDayDetails = null },
+            onAddReminder = { date -> showAddDialogForDate = date },
+            onDeleteReminder = { reminder -> viewModel.deleteReminder(reminder) }
         )
+    }
+
+    // Quick-Add Reminder Dialog popup
+    showAddDialogForDate?.let { date ->
+        AddEditReminderDialog(
+            reminder = Reminder(
+                id = 0,
+                title = "",
+                description = "",
+                type = "CUSTOM",
+                customGregorianDate = date.toString(),
+                repeatSetting = "ONE_TIME"
+            ),
+            onDismiss = { showAddDialogForDate = null },
+            onSave = { r ->
+                viewModel.saveReminder(r)
+                showAddDialogForDate = null
+                Toast.makeText(context, "Reminder saved successfully! 🔔", Toast.LENGTH_SHORT).show()
+            },
+            defaultReminderTime = defaultReminderTime
+        )
+    }
+        }
     }
 
     // Month/Year Picker Dialog popup - Bug Fix 10B
@@ -757,10 +1044,30 @@ fun CalendarCell(
     cellData: CalendarCellData,
     showNakshatra: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showRahuKalam: Boolean = true
 ) {
-    // Colors of Pournami & Amavasai & Festival - Bug Fix 3
+    val isMorningRahu = remember(cellData.date) {
+        val todayLocalDate = cellData.date
+        val dayOfWeek = todayLocalDate.atStartOfDay(java.time.ZoneId.systemDefault()).let {
+            val c = java.util.Calendar.getInstance()
+            c.timeInMillis = it.toInstant().toEpochMilli()
+            c.get(java.util.Calendar.DAY_OF_WEEK)
+        }
+        val (sunrise, sunset) = TamilCalendarHelper.getTodaySunriseSunset(todayLocalDate)
+        val rahu = TamilCalendarHelper.calculateRahuKalam(dayOfWeek, sunrise, sunset)
+        val midday = (sunrise + sunset) / 2
+        rahu.first < midday
+    }
+
+    val isPastDate = remember(cellData.date) {
+        cellData.date.isBefore(LocalDate.now())
+    }
+
+    // Colors of Pournami & Amavasai & Festival & Chit - Bug Fix 3
     val cellBackgroundColor = when {
+        cellData.isToday -> Color(0xFF1565C0) // High-contrast blue background for today!
+        cellData.hasChitPayment -> Color(0xFFFFFDE7) // Yellow background for Chit payment cells
         cellData.isPournami -> Color(0xFFFFF9C4) // Soft golden yellow
         cellData.isAmavasai -> Color(0xFF1A237E) // Deep dark blue
         cellData.isFestival -> Color(0xFFFFEBEE) // Very light pink
@@ -768,7 +1075,7 @@ fun CalendarCell(
     }
 
     val englishDateColor = when {
-        cellData.isToday -> Color.White
+        cellData.isToday -> Color(0xFF1565C0) // High-contrast blue text on white circle
         cellData.isPournami -> Color(0xFFE65100) // Deep orange
         cellData.isAmavasai -> Color(0xFFFFFFFF) // White
         cellData.isFestival -> Color(0xFFD32F2F) // Deep Red
@@ -782,38 +1089,66 @@ fun CalendarCell(
     }
 
     val cellBorderColor = when {
+        cellData.isToday -> Color(0xFF0D47A1)
+        cellData.hasChitPayment -> Color(0xFFFBC02D) // Darker yellow border
         cellData.isPournami -> Color(0xFFFFB300) // Amber
         cellData.isAmavasai -> Color(0xFF3949AB) // Indigo
         else -> Color(0xFFE0E0E0)
     }
 
-    val cellBorderWidth = if (cellData.isPournami || cellData.isAmavasai) 1.5.dp else 0.5.dp
+    val cellBorderWidth = if (cellData.isToday) 2.dp else if (cellData.isPournami || cellData.isAmavasai || cellData.hasChitPayment) 1.5.dp else 0.5.dp
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(58.dp)
+            .fillMaxHeight()
             .background(cellBackgroundColor)
             .border(cellBorderWidth, cellBorderColor)
             .clickable { onClick() }
             .padding(2.dp)
     ) {
+        // Festival indicator — TOP CENTER
+        // Saffron orange dot
+        if (cellData.isFestival) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 2.dp)
+                    .size(5.dp)
+                    .background(Color(0xFFFF6B00), CircleShape)
+            )
+        }
+
+        // Morning Rahu Kalam — TOP RIGHT
+        // Deep red dot (smaller)
+        if (showRahuKalam && isMorningRahu && !cellData.isToday) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(end = 2.dp, top = 2.dp)
+                    .size(4.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFD32F2F))
+                    .testTag("morning_rahu_dot_${cellData.englishDate}")
+            )
+        }
+
         // LAYER 1 — TOP LEFT: English date
         if (cellData.isToday) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(start = 1.dp, top = 1.dp)
-                    .size(16.dp)
+                    .padding(start = 2.dp, top = 2.dp)
+                    .size(22.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF1565C0)),
+                    .background(Color.White),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = cellData.englishDate.toString(),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = englishDateColor,
                     maxLines = 1
                 )
             }
@@ -841,12 +1176,35 @@ fun CalendarCell(
             )
         }
 
-        // LAYER 3 — CENTER: Nakshatra name, abbreviated to max 5 chars
-        if (showNakshatra && cellData.nakshatraName.isNotEmpty()) {
+        // LAYER 3 — CENTER: Nakshatra name or Indicators (Birthday / Chit)
+        Row(
+            modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 2.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (cellData.hasBirthday) {
+                Text(
+                    text = "🎂",
+                    fontSize = 10.sp,
+                    modifier = Modifier.testTag("birthday_indicator_${cellData.englishDate}")
+                )
+            }
+            if (cellData.hasChitPayment) {
+                Text(
+                    text = "₹",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1B5E20),
+                    modifier = Modifier.testTag("chit_indicator_${cellData.englishDate}")
+                )
+            }
+        }
+
+        if (showNakshatra && cellData.nakshatraName.isNotEmpty() && !cellData.hasBirthday && !cellData.hasChitPayment) {
             Text(
                 text = abbreviateNakshatra(cellData.nakshatraName),
                 fontSize = 6.sp,
-                color = Color(0xFF7B1FA2),
+                color = if (cellData.isToday) Color.White else Color(0xFF7B1FA2),
                 maxLines = 1,
                 overflow = TextOverflow.Clip,
                 textAlign = TextAlign.Center,
@@ -858,11 +1216,11 @@ fun CalendarCell(
         }
 
         // LAYER 4 — BOTTOM LEFT: Reminder bell icon
-        if (cellData.hasReminder) {
+        if (cellData.hasReminder && !isPastDate) {
             Icon(
                 imageVector = Icons.Default.Notifications,
                 contentDescription = null,
-                tint = Color(0xFF1565C0),
+                tint = if (cellData.isToday) Color.White else Color(0xFF1565C0),
                 modifier = Modifier
                     .size(if (showNakshatra && cellData.nakshatraName.isNotEmpty()) 8.dp else 10.dp)
                     .align(Alignment.BottomStart)
@@ -884,12 +1242,56 @@ fun CalendarCell(
 }
 
 @Composable
+fun LegendItem(
+    color: Color,
+    label: String,
+    shape: androidx.compose.ui.graphics.Shape
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .background(color, shape)
+                .border(0.5.dp, Color.Gray, shape)
+        )
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            color = Color(0xFF616161),
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
 fun DayDetailsDialog(
     tamilDate: TamilDate,
     showNakshatra: Boolean,
     reminders: List<Reminder>,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onAddReminder: (LocalDate) -> Unit
 ) {
+    val date = LocalDate.of(tamilDate.englishYear, tamilDate.englishMonth, tamilDate.englishDay)
+    val dayOfWeekName = date.dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() }
+    val formattedEngDate = "$dayOfWeekName, ${tamilDate.englishDay} ${java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy").format(date)}"
+
+    val dayOfWeek = date.atStartOfDay(java.time.ZoneId.systemDefault()).let {
+        val c = java.util.Calendar.getInstance()
+        c.timeInMillis = it.toInstant().toEpochMilli()
+        c.get(java.util.Calendar.DAY_OF_WEEK)
+    }
+    val (sunrise, sunset) = TamilCalendarHelper.getTodaySunriseSunset(date)
+    val rahu = TamilCalendarHelper.calculateRahuKalam(dayOfWeek, sunrise, sunset)
+    val yama = TamilCalendarHelper.calculateYamagandam(dayOfWeek, sunrise, sunset)
+    val kuligai = TamilCalendarHelper.calculateKuligai(dayOfWeek, sunrise, sunset)
+
+    val midday = (sunrise + sunset) / 2
+    val abhijitStart = midday - 24 * 60 * 1000L
+    val abhijitEnd = midday + 24 * 60 * 1000L
+
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
@@ -910,12 +1312,26 @@ fun DayDetailsDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "நாள் விபரம் / Day Details",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "நாள் விபரம் / Day Details",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = formattedEngDate,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                        Text(
+                            text = "${tamilDate.tamilMonthNameTamil} ${tamilDate.tamilDay} / ${tamilDate.tamilMonthNameEnglish} ${tamilDate.tamilDay}",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFF6B00)
+                        )
+                    }
                     IconButton(onClick = onDismiss, modifier = Modifier.testTag("close_details_btn")) {
                         Icon(Icons.Default.Close, contentDescription = "Close")
                     }
@@ -923,143 +1339,272 @@ fun DayDetailsDialog(
 
                 Divider(modifier = Modifier.padding(vertical = 12.dp))
 
-                if (tamilDate.festivalName != null) {
-                    val festivalDesc = FestivalSignificanceProvider.festivalDescriptions[tamilDate.festivalName]
-                    val accentColor = festivalDesc?.colorAccent ?: SaffronRed
-                    
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = accentColor.copy(alpha = 0.08f)),
-                        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.25f)),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 14.dp)
-                            .testTag("festival_significance_card")
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    // Festival highlight card
+                    if (tamilDate.festivalName != null) {
+                        val festivalDesc = FestivalSignificanceProvider.festivalDescriptions[tamilDate.festivalName]
+                        val accentColor = festivalDesc?.colorAccent ?: SaffronRed
+                        
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = accentColor.copy(alpha = 0.08f)),
+                            border = BorderStroke(1.dp, accentColor.copy(alpha = 0.25f)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("festival_significance_card")
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Star, 
-                                    contentDescription = "Festival Spotlight", 
-                                    tint = accentColor,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = festivalDesc?.nameEnglish ?: tamilDate.festivalName,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = accentColor,
-                                    modifier = Modifier.testTag("festival_title_english")
-                                )
-                            }
-                            
-                            if (festivalDesc != null) {
-                                Text(
-                                    text = festivalDesc.nameTamil,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = accentColor.copy(alpha = 0.85f),
-                                    modifier = Modifier.testTag("festival_title_tamil")
-                                )
-                                
-                                Text(
-                                    text = festivalDesc.descriptionTamil,
-                                    fontSize = 12.sp,
-                                    lineHeight = 16.sp,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.testTag("festival_desc_tamil")
-                                )
-                                
-                                Text(
-                                    text = festivalDesc.descriptionEnglish,
-                                    fontSize = 11.5.sp,
-                                    lineHeight = 15.sp,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                                    modifier = Modifier.testTag("festival_desc_english")
-                                )
-                            }
-                        }
-                    }
-                }
-
-                InfoRow(label = "English Date", value = "${tamilDate.englishDay}-${tamilDate.englishMonth}-${tamilDate.englishYear}")
-                InfoRow(label = "Tamil Month", value = "${tamilDate.tamilMonthNameTamil} / ${tamilDate.tamilMonthNameEnglish}")
-                InfoRow(label = "Tamil Date", value = "${tamilDate.tamilDay}") // No numerals
-                
-                InfoRow(label = "Tamil Year", value = tamilDate.tamilYearName)
-
-                val paksha = if (tamilDate.tithi <= 15) "வளர்பிறை / Shukla Paksha (Waxing)" else "தேய்பிறை / Krishna Paksha (Waning)"
-                val tithiName = when (tamilDate.tithi) {
-                    1, 16 -> "பிரதமை / Prathama"
-                    2, 17 -> "துவிதியை / Dwitiya"
-                    3, 18 -> "திருதியை / Tritiya"
-                    4, 19 -> "சதுர்த்தி / Chaturthi"
-                    5, 20 -> "பஞ்சமி / Panchami"
-                    6, 21 -> "சஷ்டி / Shashti"
-                    7, 22 -> "சப்தமி / Saptami"
-                    8, 23 -> "அஷ்டமி / Ashtami"
-                    9, 24 -> "நவமி / Navami"
-                    10, 25 -> "தசமி / Dashami"
-                    11, 26 -> "ஏகாதசி / Ekadashi"
-                    12, 27 -> "துவாதசி / Dwadashi"
-                    13, 28 -> "திரயோதசி / Trayodashi"
-                    14, 29 -> "சதுர்தசி / Chaturdashi"
-                    15 -> "பௌர்ணமி / Pournami (Full Moon)"
-                    30 -> "அமாவாசை / Amavasai (New Moon)"
-                    else -> "திதி / Tithi"
-                }
-                
-                InfoRow(label = "Tithi (திதி)", value = tithiName)
-                InfoRow(label = "Paksha (பக்ஷம்)", value = paksha)
-
-                if (showNakshatra) {
-                    InfoRow(label = "Nakshatra (நட்சத்திரம்)", value = tamilDate.nakshatra)
-                }
-
-                if (reminders.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "Saved Reminders for Today:",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.align(Alignment.Start)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        for (r in reminders) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                shape = RoundedCornerShape(6.dp),
-                                modifier = Modifier.fillMaxWidth()
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
-                                        imageVector = Icons.Default.Notifications,
-                                        contentDescription = "Alert",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
+                                        imageVector = Icons.Default.Star, 
+                                        contentDescription = "Festival Spotlight", 
+                                        tint = accentColor,
+                                        modifier = Modifier.size(20.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "${r.title} @ ${r.reminderTime}",
+                                        text = festivalDesc?.nameEnglish ?: tamilDate.festivalName,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = accentColor,
+                                        modifier = Modifier.testTag("festival_title_english")
+                                    )
+                                }
+                                
+                                if (festivalDesc != null) {
+                                    Text(
+                                        text = festivalDesc.nameTamil,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = accentColor.copy(alpha = 0.85f),
+                                        modifier = Modifier.testTag("festival_title_tamil")
+                                    )
+                                    
+                                    Text(
+                                        text = festivalDesc.descriptionTamil,
                                         fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        lineHeight = 16.sp,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = FontWeight.Medium,
+                                        modifier = Modifier.testTag("festival_desc_tamil")
+                                    )
+                                    
+                                    Text(
+                                        text = festivalDesc.descriptionEnglish,
+                                        fontSize = 11.5.sp,
+                                        lineHeight = 15.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                                        modifier = Modifier.testTag("festival_desc_english")
                                     )
                                 }
                             }
                         }
+                    }
+
+                    // Astro Rows
+                    InfoRow(label = "Tamil Year", value = tamilDate.tamilYearName)
+
+                    val paksha = if (tamilDate.tithi <= 15) "வளர்பிறை / Shukla Paksha (Waxing)" else "தேய்பிறை / Krishna Paksha (Waning)"
+                    val tithiName = when (tamilDate.tithi) {
+                        1, 16 -> "பிரதமை / Prathama"
+                        2, 17 -> "துவிதியை / Dwitiya"
+                        3, 18 -> "திருதியை / Tritiya"
+                        4, 19 -> "சதுர்த்தி / Chaturthi"
+                        5, 20 -> "பஞ்சமி / Panchami"
+                        6, 21 -> "சஷ்டி / Shashti"
+                        7, 22 -> "சப்தமி / Saptami"
+                        8, 23 -> "அஷ்டமி / Ashtami"
+                        9, 24 -> "நவமி / Navami"
+                        10, 25 -> "தசமி / Dashami"
+                        11, 26 -> "ஏகாதசி / Ekadashi"
+                        12, 27 -> "துவாதசி / Dwadashi"
+                        13, 28 -> "திரயோதசி / Trayodashi"
+                        14, 29 -> "சதுர்தசி / Chaturdashi"
+                        15 -> "பௌர்ணமி / Pournami (Full Moon)"
+                        30 -> "அமாவாசை / Amavasai (New Moon)"
+                        else -> "திதி / Tithi"
+                    }
+                    
+                    InfoRow(label = "Tithi (திதி)", value = tithiName)
+                    InfoRow(label = "Paksha (பக்ஷம்)", value = paksha)
+
+                    if (showNakshatra) {
+                        InfoRow(label = "Nakshatra (நட்சத்திரம்)", value = tamilDate.nakshatra)
+                    }
+
+                    // Inauspicious Times Section
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = "━━ Inauspicious Times (அசுப நேரம்) ━━",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+
+                        // Rahu Kalam
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Text("🔴", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                            Column {
+                                Text("Rahu Kalam (இராகு காலம்)", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFD32F2F))
+                                Text(TamilCalendarHelper.formatTimeRange(rahu.first, rahu.second), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                Text("Avoid important/new undertakings", fontSize = 11.sp, color = Color.Gray)
+                            }
+                        }
+
+                        // Yamagandam
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Text("🟡", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                            Column {
+                                Text("Yamagandam (எமகண்டம்)", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF57C00))
+                                Text(TamilCalendarHelper.formatTimeRange(yama.first, yama.second), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                Text("Avoid travel and commencing new starts", fontSize = 11.sp, color = Color.Gray)
+                            }
+                        }
+
+                        // Kuligai
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Text("🟠", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                            Column {
+                                Text("Kuligai (குளிகை)", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
+                                Text(TamilCalendarHelper.formatTimeRange(kuligai.first, kuligai.second), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                Text("Good for routine things, repeats itself", fontSize = 11.sp, color = Color.Gray)
+                            }
+                        }
+                    }
+
+                    // Auspicious Times Section
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "━━ Auspicious Times (சுப நேரம்) ━━",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+
+                        // Abhijit Muhurtham
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Text("🟢", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                            Column {
+                                Text("Abhijit Muhurtham (அபிஜித் முகூர்த்தம்)", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF388E3C))
+                                Text(TamilCalendarHelper.formatTimeRange(abhijitStart, abhijitEnd), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                Text("Highly auspicious midday time for new starts", fontSize = 11.sp, color = Color.Gray)
+                            }
+                        }
+                    }
+
+                    // Festivals Section
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "━━ Festivals (பண்டிகைகள்) ━━",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Gray
+                        )
+                        Text(
+                            text = if (tamilDate.festivalName != null) "🎉 ${tamilDate.festivalName}" else "🎉 No festivals today",
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    // Reminders Section
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "━━ Your Reminders (நினைவூட்டல்கள்) ━━",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Gray
+                        )
+                        if (reminders.isEmpty()) {
+                            Text("🔔 No reminders for this day", fontSize = 13.sp, color = Color.Gray)
+                        } else {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                for (r in reminders) {
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.surfaceVariant,
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Notifications,
+                                                contentDescription = "Alert",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "${r.title} @ ${r.reminderTime}",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // [+ Add Reminder] button
+                    Button(
+                        onClick = {
+                            onDismiss()
+                            onAddReminder(date)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B00)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("add_reminder_from_details_btn")
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Add", tint = Color.White)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("+ Add Reminder for this day", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -2533,6 +3078,15 @@ fun SettingsTabScreen(viewModel: TamilCalendarViewModel) {
     val showNakshatra by viewModel.showNakshatra.collectAsStateWithLifecycle()
     val useDarkMode by viewModel.useDarkMode.collectAsStateWithLifecycle()
 
+    val showRahuKalam by viewModel.showRahuKalam.collectAsStateWithLifecycle()
+    val rahuKalamAlert by viewModel.rahuKalamAlert.collectAsStateWithLifecycle()
+    val briefingEnabled by viewModel.morningBriefingEnabled.collectAsStateWithLifecycle()
+    val briefingTime by viewModel.briefingTime.collectAsStateWithLifecycle()
+    val briefingIncFestivals by viewModel.includeFestivals.collectAsStateWithLifecycle()
+    val briefingIncAuspicious by viewModel.includeNakshatra.collectAsStateWithLifecycle()
+    val briefingIncInauspicious by viewModel.includeRahuKalam.collectAsStateWithLifecycle()
+    val briefingIncReminders by viewModel.includeReminders.collectAsStateWithLifecycle()
+
     val context = LocalContext.current
 
     val defaultParts = remember(defaultTime) {
@@ -2561,6 +3115,30 @@ fun SettingsTabScreen(viewModel: TamilCalendarViewModel) {
         }
     }
 
+    val briefingParts = remember(briefingTime) {
+        val parts = briefingTime.split(":")
+        val h24 = parts.getOrNull(0)?.toIntOrNull() ?: 7
+        val m = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        val h12 = if (h24 == 0) 12 else if (h24 > 12) h24 - 12 else h24
+        val amPm = if (h24 >= 12) "PM" else "AM"
+        Triple(h12, m, amPm)
+    }
+
+    var bHourIndex by remember { mutableStateOf(briefingParts.first - 1) }
+    var bMinuteIndex by remember { mutableStateOf(briefingParts.second) }
+    var bAmPmIndex by remember { mutableStateOf(if (briefingParts.third == "PM") 1 else 0) }
+
+    LaunchedEffect(briefingParts) {
+        val bSHour12 = bHourIndex + 1
+        val bSMinute = bMinuteIndex
+        val bSAmPm = if (bAmPmIndex == 1) "PM" else "AM"
+        if (Triple(bSHour12, bSMinute, bSAmPm) != briefingParts) {
+            bHourIndex = briefingParts.first - 1
+            bMinuteIndex = briefingParts.second
+            bAmPmIndex = if (briefingParts.third == "PM") 1 else 0
+        }
+    }
+
     var showSaved by remember { mutableStateOf(false) }
     var savedTrigger by remember { mutableStateOf(0) }
 
@@ -2569,6 +3147,25 @@ fun SettingsTabScreen(viewModel: TamilCalendarViewModel) {
             showSaved = true
             kotlinx.coroutines.delay(2000)
             showSaved = false
+        }
+    }
+
+    fun saveBriefingTime() {
+        val bSHour12 = bHourIndex + 1
+        val bSMinute = bMinuteIndex
+        val bSAmPm = if (bAmPmIndex == 1) "PM" else "AM"
+
+        val h24 = when {
+            bSAmPm == "AM" && bSHour12 == 12 -> 0
+            bSAmPm == "AM" -> bSHour12
+            bSAmPm == "PM" && bSHour12 == 12 -> 12
+            else -> bSHour12 + 12
+        }
+
+        val formattedResult = String.format("%02d:%02d", h24, bSMinute)
+        if (formattedResult != briefingTime) {
+            viewModel.setBriefingTime(formattedResult)
+            MorningBriefingReceiver.scheduleBriefing(context, formattedResult)
         }
     }
 
@@ -2725,6 +3322,172 @@ fun SettingsTabScreen(viewModel: TamilCalendarViewModel) {
             onCheckedChange = { viewModel.setUseDarkMode(it) },
             testTag = "toggle_dark_mode"
         )
+
+        Divider()
+
+        // Rahu Kalam Settings Section
+        Text(
+            text = "Rahu Kalam & Inauspicious",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+
+        SettingsToggleRow(
+            title = "Show Rahu Kalam (இராகு காலம்)",
+            description = "Display a visual red dot on calendar cells if morning Rahu Kalam occurs.",
+            checked = showRahuKalam,
+            onCheckedChange = { viewModel.setShowRahuKalam(it) },
+            testTag = "toggle_show_rahu_kalam"
+        )
+
+        SettingsToggleRow(
+            title = "Rahu Kalam Active Alert Banner",
+            description = "Show a real-time red warning banner if Rahu Kalam is currently active.",
+            checked = rahuKalamAlert,
+            onCheckedChange = { viewModel.setRahuKalamAlert(it) },
+            testTag = "toggle_rahu_alert"
+        )
+
+        Divider()
+
+        // Daily Morning Briefing Section
+        Text(
+            text = "Daily Morning Briefing (காலை செய்தி குறிப்பு)",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+
+        SettingsToggleRow(
+            title = "Enable Morning Briefing",
+            description = "Receive a compiled rich notification summary of the day every morning.",
+            checked = briefingEnabled,
+            onCheckedChange = { isEnabled ->
+                viewModel.setMorningBriefingEnabled(isEnabled)
+                if (isEnabled) {
+                    MorningBriefingReceiver.scheduleBriefing(context, briefingTime)
+                } else {
+                    MorningBriefingReceiver.cancelBriefing(context)
+                }
+            },
+            testTag = "toggle_morning_briefing"
+        )
+
+        if (briefingEnabled) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Briefing Schedule Time",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val bh = (bHourIndex + 1).toString().padStart(2, '0')
+                        val bm = bMinuteIndex.toString().padStart(2, '0')
+                        val bAmPm = if (bAmPmIndex == 1) "PM" else "AM"
+
+                        Text(
+                            text = "$bh : $bm $bAmPm",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            WheelPicker(
+                                items = (1..12).map { it.toString().padStart(2, '0') },
+                                selectedIndex = bHourIndex,
+                                onSelected = {
+                                    bHourIndex = it
+                                    saveBriefingTime()
+                                },
+                                modifier = Modifier.width(60.dp),
+                                infiniteScroll = true
+                            )
+                            WheelPicker(
+                                items = (0..59).map { it.toString().padStart(2, '0') },
+                                selectedIndex = bMinuteIndex,
+                                onSelected = {
+                                    bMinuteIndex = it
+                                    saveBriefingTime()
+                                },
+                                modifier = Modifier.width(60.dp),
+                                infiniteScroll = true
+                            )
+                            WheelPicker(
+                                items = listOf("AM", "PM"),
+                                selectedIndex = bAmPmIndex,
+                                onSelected = {
+                                    bAmPmIndex = it
+                                    saveBriefingTime()
+                                },
+                                modifier = Modifier.width(55.dp),
+                                infiniteScroll = false
+                            )
+                        }
+                    }
+
+                    Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    Text(
+                        text = "Briefing Dynamic Content Preferences:",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+
+                    SettingsToggleRow(
+                        title = "Include Traditional Festivals",
+                        description = "Include Pournami, Amavasai, and major Tamil festivals.",
+                        checked = briefingIncFestivals,
+                        onCheckedChange = { viewModel.setIncludeFestivals(it) },
+                        testTag = "briefing_inc_festivals"
+                    )
+
+                    SettingsToggleRow(
+                        title = "Include Auspicious Times",
+                        description = "Include Abhijit Muhurtham.",
+                        checked = briefingIncAuspicious,
+                        onCheckedChange = { viewModel.setIncludeNakshatra(it) },
+                        testTag = "briefing_inc_auspicious"
+                    )
+
+                    SettingsToggleRow(
+                        title = "Include Inauspicious Times",
+                        description = "Include Rahu Kalam, Yamagandam, and Kuligai.",
+                        checked = briefingIncInauspicious,
+                        onCheckedChange = { viewModel.setIncludeRahuKalam(it) },
+                        testTag = "briefing_inc_inauspicious"
+                    )
+
+                    SettingsToggleRow(
+                        title = "Include User Agenda & Reminders",
+                        description = "Include scheduled reminders for today.",
+                        checked = briefingIncReminders,
+                        onCheckedChange = { viewModel.setIncludeReminders(it) },
+                        testTag = "briefing_inc_reminders"
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(80.dp))
 

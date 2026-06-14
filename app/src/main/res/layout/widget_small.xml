@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="12dp">
+
+    <TextView
+        android:id="@+id/widget_english_date"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#FFFFFF"
+        android:textSize="36sp"
+        android:textStyle="bold"
+        android:text="17" />
+
+    <TextView
+        android:id="@+id/widget_day_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#B0BEC5"
+        android:textSize="12sp"
+        android:textStyle="normal"
+        android:text="Friday" />
+
+    <TextView
+        android:id="@+id/widget_tamil_date"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#FFFF6B00"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:layout_marginTop="2dp"
+        android:text="ஆடி 3" />
+
+    <TextView
+        android:id="@+id/widget_nakshatra"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#CE93D8"
+        android:textSize="11sp"
+        android:layout_marginTop="2dp"
+        android:text="⭐ Hastam" />
+
+</LinearLayout>

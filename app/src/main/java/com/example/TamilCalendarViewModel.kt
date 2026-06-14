@@ -28,7 +28,10 @@ data class CalendarCellData(
     val isFestival: Boolean,
     val festivalName: String,
     val hasReminder: Boolean,
-    val isToday: Boolean
+    val isToday: Boolean,
+    val hasBirthday: Boolean = false,
+    val birthdayName: String = "",
+    val hasChitPayment: Boolean = false
 )
 
 class TamilCalendarViewModel(application: Application) : AndroidViewModel(application) {
@@ -39,6 +42,20 @@ class TamilCalendarViewModel(application: Application) : AndroidViewModel(applic
 
     // Flow of all reminders
     val allReminders: StateFlow<List<Reminder>> = dao.getAllReminders()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val allFamilyMembers: StateFlow<List<FamilyMember>> = dao.getAllFamilyMembers()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val allChitFunds: StateFlow<List<ChitFund>> = dao.getAllChitFunds()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -82,6 +99,35 @@ class TamilCalendarViewModel(application: Application) : AndroidViewModel(applic
     private val _useDarkMode = MutableStateFlow(sharedPrefs.getBoolean("use_dark_mode", false))
     val useDarkMode = _useDarkMode.asStateFlow()
 
+    // Rahu / Yama settings
+    private val _showRahuKalam = MutableStateFlow(sharedPrefs.getBoolean("show_rahu_kalam", true))
+    val showRahuKalam = _showRahuKalam.asStateFlow()
+
+    private val _rahuKalamAlert = MutableStateFlow(sharedPrefs.getBoolean("rahu_kalam_alert", true))
+    val rahuKalamAlert = _rahuKalamAlert.asStateFlow()
+
+    // Morning briefing settings
+    private val _morningBriefingEnabled = MutableStateFlow(sharedPrefs.getBoolean("morning_briefing_enabled", false))
+    val morningBriefingEnabled = _morningBriefingEnabled.asStateFlow()
+
+    private val _briefingTime = MutableStateFlow(sharedPrefs.getString("briefing_time", "07:00") ?: "07:00")
+    val briefingTime = _briefingTime.asStateFlow()
+
+    private val _includeNakshatra = MutableStateFlow(sharedPrefs.getBoolean("include_nakshatra", true))
+    val includeNakshatra = _includeNakshatra.asStateFlow()
+
+    private val _includeRahuKalam = MutableStateFlow(sharedPrefs.getBoolean("include_rahu_kalam", true))
+    val includeRahuKalam = _includeRahuKalam.asStateFlow()
+
+    private val _includeReminders = MutableStateFlow(sharedPrefs.getBoolean("include_reminders", true))
+    val includeReminders = _includeReminders.asStateFlow()
+
+    private val _includeTomorrow = MutableStateFlow(sharedPrefs.getBoolean("include_tomorrow", true))
+    val includeTomorrow = _includeTomorrow.asStateFlow()
+
+    private val _includeFestivals = MutableStateFlow(sharedPrefs.getBoolean("include_festivals", true))
+    val includeFestivals = _includeFestivals.asStateFlow()
+
     // Permissions feedback States - Bug Fix 2AB
     private val _isNotificationPermissionGranted = MutableStateFlow(true)
     val isNotificationPermissionGranted = _isNotificationPermissionGranted.asStateFlow()
@@ -96,8 +142,10 @@ class TamilCalendarViewModel(application: Application) : AndroidViewModel(applic
     // Calendar grid stable cells - Bug Fix 7
     val calendarCells: StateFlow<List<CalendarCellData>> = combine(
         _currentActiveMonthDate,
-        allReminders
-    ) { activeMonth, remindersList ->
+        allReminders,
+        allFamilyMembers,
+        allChitFunds
+    ) { activeMonth, remindersList, familyList, chitList ->
         val cells = mutableListOf<CalendarCellData>()
         val daysInMonth = activeMonth.lengthOfMonth()
         
@@ -107,6 +155,21 @@ class TamilCalendarViewModel(application: Application) : AndroidViewModel(applic
             val isToday = (date == LocalDate.now())
             val hasReminder = hasReminderCheck(date, remindersList)
             val isFestival = tDate.festivalName != null && tDate.festivalName != "Pournami / பௌர்ணமி" && tDate.festivalName != "Amavasai / அமாவாசை"
+
+            val birthdayMember = familyList.find { member ->
+                try {
+                    val parsed = LocalDate.parse(member.birthDateEnglish)
+                    parsed.monthValue == date.monthValue && parsed.dayOfMonth == date.dayOfMonth
+                } catch (e: Exception) {
+                    false
+                }
+            }
+            val hasBirthday = birthdayMember != null
+            val birthdayName = birthdayMember?.name ?: ""
+
+            val hasChitPayment = chitList.any { chit ->
+                chit.isActive && chit.paymentDayOfMonth == date.dayOfMonth
+            }
 
             cells.add(
                 CalendarCellData(
@@ -121,7 +184,10 @@ class TamilCalendarViewModel(application: Application) : AndroidViewModel(applic
                     isFestival = isFestival,
                     festivalName = tDate.festivalName ?: "",
                     hasReminder = hasReminder,
-                    isToday = isToday
+                    isToday = isToday,
+                    hasBirthday = hasBirthday,
+                    birthdayName = birthdayName,
+                    hasChitPayment = hasChitPayment
                 )
             )
         }
@@ -261,6 +327,7 @@ class TamilCalendarViewModel(application: Application) : AndroidViewModel(applic
                 dao.updateReminder(reminder)
             }
             ReminderScheduler.scheduleNextAlarm(getApplication())
+            com.example.receiver.TamilCalendarWidgetProvider.triggerWidgetUpdate(getApplication())
         }
     }
 
@@ -268,6 +335,7 @@ class TamilCalendarViewModel(application: Application) : AndroidViewModel(applic
         viewModelScope.launch {
             dao.deleteReminder(reminder)
             ReminderScheduler.scheduleNextAlarm(getApplication())
+            com.example.receiver.TamilCalendarWidgetProvider.triggerWidgetUpdate(getApplication())
         }
     }
 
@@ -275,6 +343,7 @@ class TamilCalendarViewModel(application: Application) : AndroidViewModel(applic
         viewModelScope.launch {
             dao.deleteReminderById(id)
             ReminderScheduler.scheduleNextAlarm(getApplication())
+            com.example.receiver.TamilCalendarWidgetProvider.triggerWidgetUpdate(getApplication())
         }
     }
 
@@ -283,6 +352,7 @@ class TamilCalendarViewModel(application: Application) : AndroidViewModel(applic
             val updated = reminder.copy(isEnabled = !reminder.isEnabled)
             dao.updateReminder(updated)
             ReminderScheduler.scheduleNextAlarm(getApplication())
+            com.example.receiver.TamilCalendarWidgetProvider.triggerWidgetUpdate(getApplication())
         }
     }
 
@@ -303,5 +373,109 @@ class TamilCalendarViewModel(application: Application) : AndroidViewModel(applic
     fun setUseDarkMode(value: Boolean) {
         _useDarkMode.value = value
         sharedPrefs.edit().putBoolean("use_dark_mode", value).apply()
+    }
+
+    fun setShowRahuKalam(value: Boolean) {
+        _showRahuKalam.value = value
+        sharedPrefs.edit().putBoolean("show_rahu_kalam", value).apply()
+    }
+
+    fun setRahuKalamAlert(value: Boolean) {
+        _rahuKalamAlert.value = value
+        sharedPrefs.edit().putBoolean("rahu_kalam_alert", value).apply()
+    }
+
+    fun setMorningBriefingEnabled(value: Boolean) {
+        _morningBriefingEnabled.value = value
+        sharedPrefs.edit().putBoolean("morning_briefing_enabled", value).apply()
+    }
+
+    fun setBriefingTime(value: String) {
+        _briefingTime.value = value
+        sharedPrefs.edit().putString("briefing_time", value).apply()
+    }
+
+    fun setIncludeNakshatra(value: Boolean) {
+        _includeNakshatra.value = value
+        sharedPrefs.edit().putBoolean("include_nakshatra", value).apply()
+    }
+
+    fun setIncludeRahuKalam(value: Boolean) {
+        _includeRahuKalam.value = value
+        sharedPrefs.edit().putBoolean("include_rahu_kalam", value).apply()
+    }
+
+    fun setIncludeReminders(value: Boolean) {
+        _includeReminders.value = value
+        sharedPrefs.edit().putBoolean("include_reminders", value).apply()
+    }
+
+    fun setIncludeTomorrow(value: Boolean) {
+        _includeTomorrow.value = value
+        sharedPrefs.edit().putBoolean("include_tomorrow", value).apply()
+    }
+
+    fun setIncludeFestivals(value: Boolean) {
+        _includeFestivals.value = value
+        sharedPrefs.edit().putBoolean("include_festivals", value).apply()
+    }
+
+    // Family Birthday Operations
+    fun saveFamilyMember(member: FamilyMember) {
+        viewModelScope.launch {
+            dao.insertFamilyMember(member)
+            // Auto create yearly reminder
+            val reminder = Reminder(
+                title = "🎂 ${member.name}'s Birthday",
+                description = "Star: ${member.birthNakshatra}\nRelation: ${member.relationship}",
+                type = "CUSTOM",
+                customGregorianDate = member.birthDateEnglish,
+                repeatSetting = "YEARLY",
+                isSystemReminder = false
+            )
+            dao.insertReminder(reminder)
+            ReminderScheduler.scheduleNextAlarm(getApplication())
+            com.example.receiver.TamilCalendarWidgetProvider.triggerWidgetUpdate(getApplication())
+        }
+    }
+
+    fun deleteFamilyMember(member: FamilyMember) {
+        viewModelScope.launch {
+            dao.deleteFamilyMember(member)
+            com.example.receiver.TamilCalendarWidgetProvider.triggerWidgetUpdate(getApplication())
+        }
+    }
+
+    // Chit Fund Operations
+    fun saveChitFund(chit: ChitFund) {
+        viewModelScope.launch {
+            dao.insertChitFund(chit)
+            // Auto create monthly reminder on adding chit
+            val reminder = Reminder(
+                title = "₹ ${chit.name} Chit Payment",
+                description = "Chit Value: ₹${chit.chitValue}\nDue Day: ${chit.paymentDayOfMonth}",
+                type = "ENGLISH",
+                englishDayOfMonth = chit.paymentDayOfMonth,
+                repeatSetting = "MONTHLY",
+                isSystemReminder = false
+            )
+            dao.insertReminder(reminder)
+            ReminderScheduler.scheduleNextAlarm(getApplication())
+            com.example.receiver.TamilCalendarWidgetProvider.triggerWidgetUpdate(getApplication())
+        }
+    }
+
+    fun deleteChitFund(chit: ChitFund) {
+        viewModelScope.launch {
+            dao.deleteChitFund(chit)
+            com.example.receiver.TamilCalendarWidgetProvider.triggerWidgetUpdate(getApplication())
+        }
+    }
+
+    fun updateChitFund(chit: ChitFund) {
+        viewModelScope.launch {
+            dao.updateChitFund(chit)
+            com.example.receiver.TamilCalendarWidgetProvider.triggerWidgetUpdate(getApplication())
+        }
     }
 }

@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <!-- Header -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="6dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:text="🗓️ TAMIL CALENDAR" />
+
+        <TextView
+            android:id="@+id/widget_month_year"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:textColor="#B0BEC5"
+            android:textSize="11sp"
+            android:text="July 2026" />
+    </RelativeLayout>
+
+    <!-- Mid contents: Date, Day, Tamil, Nakshatra, Moon details -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <!-- Left Column -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/widget_english_date"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:textSize="32sp"
+                android:textStyle="bold"
+                android:text="17" />
+
+            <TextView
+                android:id="@+id/widget_day_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#B0BEC5"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:text="FRIDAY" />
+        </LinearLayout>
+
+        <!-- Divider Line -->
+        <View
+            android:layout_width="1dp"
+            android:layout_height="40dp"
+            android:background="#40FFFFFF"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp" />
+
+        <!-- Right Column -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_weight="1.5"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/widget_tamil_date"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFF6B00"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:text="ஆடி 3 / Aadi 3" />
+
+            <TextView
+                android:id="@+id/widget_nakshatra"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#CE93D8"
+                android:textSize="11sp"
+                android:text="⭐ Hastam" />
+
+            <TextView
+                android:id="@+id/widget_moon_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#E0E0E0"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                android:text="🌕 Pournami" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Horizontal divider -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#20FFFFFF"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="6dp" />
+
+    <!-- Inauspicious times (Rahu, Yama) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/widget_rahu_text"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:textColor="#EF9A9A"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:text="⛔ Rahu: 9:00 - 10:30 AM" />
+
+        <TextView
+            android:id="@+id/widget_yama_text"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:textColor="#FFF59D"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:text="⚡ Yama: 3:00 - 4:30 PM" />
+    </LinearLayout>
+
+    <!-- Horizontal divider -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#20FFFFFF"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="6dp" />
+
+    <!-- Reminders Section -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/widget_reminder"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#90CAF9"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:ellipsize="end"
+            android:text="🔔 Chit Payment — Tomorrow\n🔔 Rent Due — in 3 days" />
+    </LinearLayout>
+
+</LinearLayout>

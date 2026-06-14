@@ -1,5 +1,6 @@
 package com.example
 
+import android.util.Log
 import java.time.LocalDate
 import kotlin.math.floor
 
@@ -118,167 +119,292 @@ object TamilCalendarHelper {
     }
 
     fun getTamilDate(year: Int, month: Int, day: Int): TamilDate {
-        val targetDate = LocalDate.of(year, month, day)
-        val sankrantiSelected = getSankrantiDay(year, month)
+        try {
+            val targetDate = LocalDate.of(year, month, day)
+            val sankrantiSelected = getSankrantiDay(year, month)
 
-        val tamilMonthIndex: Int
-        val tamilDay: Int
-        val isBeforeSankranti = day < sankrantiSelected
+            val tamilMonthIndex: Int
+            val tamilDay: Int
+            val isBeforeSankranti = day < sankrantiSelected
 
-        if (!isBeforeSankranti) {
-            // New Tamil Month starts in this Gregorian month
-            // Tamil Month Index mapping: Apr starts Month 1 (Chithirai)
-            tamilMonthIndex = when (month) {
-                4 -> 1  // Chithirai
-                5 -> 2  // Vaikaasi
-                6 -> 3  // Aani
-                7 -> 4  // Aadi
-                8 -> 5  // Aavani
-                9 -> 6  // Purattaasi
-                10 -> 7 // Aippasi
-                11 -> 8 // Karthikai
-                12 -> 9 // Margazhi
-                1 -> 10 // Thai
-                2 -> 11 // Maasi
-                3 -> 12 // Panguni
-                else -> 1
+            if (!isBeforeSankranti) {
+                // New Tamil Month starts in this Gregorian month
+                // Tamil Month Index mapping: Apr starts Month 1 (Chithirai)
+                tamilMonthIndex = when (month) {
+                    4 -> 1  // Chithirai
+                    5 -> 2  // Vaikaasi
+                    6 -> 3  // Aani
+                    7 -> 4  // Aadi
+                    8 -> 5  // Aavani
+                    9 -> 6  // Purattaasi
+                    10 -> 7 // Aippasi
+                    11 -> 8 // Karthikai
+                    12 -> 9 // Margazhi
+                    1 -> 10 // Thai
+                    2 -> 11 // Maasi
+                    3 -> 12 // Panguni
+                    else -> 1
+                }
+                tamilDay = day - sankrantiSelected + 1
+            } else {
+                // Prior to Sankranti, continuing previous Tamil Month
+                val prevLocalDate = targetDate.minusMonths(1)
+                val prevYear = prevLocalDate.year
+                val prevMonth = prevLocalDate.monthValue
+
+                tamilMonthIndex = when (month) {
+                    4 -> 12 // Panguni (starts in Mar)
+                    5 -> 1  // Chithirai (starts in Apr)
+                    6 -> 2  // Vaikaasi (starts in May)
+                    7 -> 3  // Aani (starts in Jun)
+                    8 -> 4  // Aadi (starts in Jul)
+                    9 -> 5  // Aavani (starts in Aug)
+                    10 -> 6 // Purattaasi (starts in Sep)
+                    11 -> 7 // Aippasi (starts in Oct)
+                    12 -> 8 // Karthikai (starts in Nov)
+                    1 -> 9  // Margazhi (starts in Dec)
+                    2 -> 10 // Thai (starts in Jan)
+                    3 -> 11 // Maasi (starts in Feb)
+                    else -> 12
+                }
+
+                val prevSankranti = getSankrantiDay(prevYear, prevMonth)
+                val daysInPrevMonth = prevLocalDate.lengthOfMonth()
+                val daysAfterPrevSankranti = daysInPrevMonth - prevSankranti + 1
+                tamilDay = daysAfterPrevSankranti + day
             }
-            tamilDay = day - sankrantiSelected + 1
-        } else {
-            // Prior to Sankranti, continuing previous Tamil Month
-            val prevLocalDate = targetDate.minusMonths(1)
-            val prevYear = prevLocalDate.year
-            val prevMonth = prevLocalDate.monthValue
 
-            tamilMonthIndex = when (month) {
-                4 -> 12 // Panguni (starts in Mar)
-                5 -> 1  // Chithirai (starts in Apr)
-                6 -> 2  // Vaikaasi (starts in May)
-                7 -> 3  // Aani (starts in Jun)
-                8 -> 4  // Aadi (starts in Jul)
-                9 -> 5  // Aavani (starts in Aug)
-                10 -> 6 // Purattaasi (starts in Sep)
-                11 -> 7 // Aippasi (starts in Oct)
-                12 -> 8 // Karthikai (starts in Nov)
-                1 -> 9  // Margazhi (starts in Dec)
-                2 -> 10 // Thai (starts in Jan)
-                3 -> 11 // Maasi (starts in Feb)
-                else -> 12
+            // Get Tamil Year Name
+            // Chithirai 1 is when Tamil New Year starts.
+            // If we are in Panguni or before Chithirai 1 of the current Gregorian year, we use the previous cycle code.
+            val isBeforeChithirai1 = (month < 4) || (month == 4 && day < getSankrantiDay(year, 4))
+            var yearCycleIndex = (year - 1987) % 60
+            if (isBeforeChithirai1) {
+                yearCycleIndex = (year - 1 - 1987) % 60
+            }
+            if (yearCycleIndex < 0) yearCycleIndex += 60
+
+            val tamilYearName = "${tamilYearsEnglish[yearCycleIndex]} / ${tamilYearsTamil[yearCycleIndex]}"
+
+            // Lunar details
+            val (lunarAge, tithi) = getLunarDetails(year, month, day)
+
+            // Calculate Nakshatra (based on Moon's sidereal position)
+            val jd = getJulianDate(year, month, day, 12.0)
+            val daysSinceEpoch = jd - 2451550.26
+            val siderealMonth = 27.321661
+            val cyclesSidereal = daysSinceEpoch / siderealMonth
+            var fracSidereal = cyclesSidereal - floor(cyclesSidereal)
+            if (fracSidereal < 0) fracSidereal += 1.0
+            val nakshatraIdx = (floor(fracSidereal * 27).toInt() % 27 + 27) % 27
+            val nakshatra = "${nakshatrasEnglish[nakshatraIdx]} / ${nakshatrasTamil[nakshatraIdx]}"
+
+            // Identify lunar phases (tithis)
+            // Check surrounding days to see which day is the absolute peak of Pournami / Amavasai
+            // or simple representation based on day's tithi (Tithi 15 = Pournami, Tithi 30 = Amavasai)
+            val isPournami = tithi == 15
+            val isAmavasai = tithi == 30
+            val isEkadashi = tithi == 11 || tithi == 26
+            val isPradosham = tithi == 13 || tithi == 28
+
+            // Festivals
+            var festivalName: String? = null
+            if (tamilMonthIndex == 10 && tamilDay == 1) {
+                festivalName = "Thai Pongal / தைப்பொங்கல்"
+            } else if (tamilMonthIndex == 1 && tamilDay == 1) {
+                festivalName = "Tamil New Year / தமிழ்ப்புத்தாண்டு"
+            } else if (tamilMonthIndex == 4 && tamilDay == 1) {
+                festivalName = "Aadi 1 / ஆடி மாதப்பிறப்பு"
+            } else if (tamilMonthIndex == 4 && tamilDay == 18) {
+                festivalName = "Aadi Perukku / ஆடிப்பெருக்கு"
+            } else if (tamilMonthIndex == 8 && isPournami) {
+                festivalName = "Karthikai Deepam / கார்த்திகை தீபம்"
+            } else if (tamilMonthIndex == 7 && isAmavasai) {
+                festivalName = "Diwali / தீபாவளி"
+            } else if (isPournami) {
+                festivalName = "Pournami / பௌர்ணமி"
+            } else if (isAmavasai) {
+                festivalName = "Amavasai / அமாவாசை"
             }
 
-            val prevSankranti = getSankrantiDay(prevYear, prevMonth)
-            val daysInPrevMonth = prevLocalDate.lengthOfMonth()
-            val daysAfterPrevSankranti = daysInPrevMonth - prevSankranti + 1
-            tamilDay = daysAfterPrevSankranti + day
+            return TamilDate(
+                englishYear = year,
+                englishMonth = month,
+                englishDay = day,
+                tamilYearName = tamilYearName,
+                tamilMonthIndex = tamilMonthIndex,
+                tamilMonthNameTamil = tamilMonthsTamil[tamilMonthIndex - 1],
+                tamilMonthNameEnglish = tamilMonthsEnglish[tamilMonthIndex - 1],
+                tamilDay = tamilDay,
+                isPournami = isPournami,
+                isAmavasai = isAmavasai,
+                isEkadashi = isEkadashi,
+                isPradosham = isPradosham,
+                festivalName = festivalName,
+                lunarAge = lunarAge,
+                tithi = tithi,
+                nakshatra = nakshatra
+            )
+        } catch (e: Exception) {
+            Log.e("TamilCalendarHelper", "getTamilDate error for $year-$month-$day, returning safe fallback", e)
+            val cleanTamilMonthIndex = if (month in 1..12) month else 1
+            return TamilDate(
+                englishYear = year,
+                englishMonth = month,
+                englishDay = day,
+                tamilYearName = "Krodhi / க்ரோதி",
+                tamilMonthIndex = cleanTamilMonthIndex,
+                tamilMonthNameTamil = tamilMonthsTamil.getOrElse(cleanTamilMonthIndex - 1) { "சித்திரை" },
+                tamilMonthNameEnglish = tamilMonthsEnglish.getOrElse(cleanTamilMonthIndex - 1) { "Chithirai" },
+                tamilDay = if (day in 1..31) day else 1,
+                isPournami = false,
+                isAmavasai = false,
+                isEkadashi = false,
+                isPradosham = false,
+                festivalName = null,
+                lunarAge = 15.0,
+                tithi = 1,
+                nakshatra = "Ashwini / அசுவினி"
+            )
         }
-
-        // Get Tamil Year Name
-        // Chithirai 1 is when Tamil New Year starts.
-        // If we are in Panguni or before Chithirai 1 of the current Gregorian year, we use the previous cycle code.
-        val isBeforeChithirai1 = (month < 4) || (month == 4 && day < getSankrantiDay(year, 4))
-        var yearCycleIndex = (year - 1987) % 60
-        if (isBeforeChithirai1) {
-            yearCycleIndex = (year - 1 - 1987) % 60
-        }
-        if (yearCycleIndex < 0) yearCycleIndex += 60
-
-        val tamilYearName = "${tamilYearsEnglish[yearCycleIndex]} / ${tamilYearsTamil[yearCycleIndex]}"
-
-        // Lunar details
-        val (lunarAge, tithi) = getLunarDetails(year, month, day)
-
-        // Calculate Nakshatra (based on Moon's sidereal position)
-        val jd = getJulianDate(year, month, day, 12.0)
-        val daysSinceEpoch = jd - 2451550.26
-        val siderealMonth = 27.321661
-        val cyclesSidereal = daysSinceEpoch / siderealMonth
-        var fracSidereal = cyclesSidereal - floor(cyclesSidereal)
-        if (fracSidereal < 0) fracSidereal += 1.0
-        val nakshatraIdx = (floor(fracSidereal * 27).toInt() % 27 + 27) % 27
-        val nakshatra = "${nakshatrasEnglish[nakshatraIdx]} / ${nakshatrasTamil[nakshatraIdx]}"
-
-        // Identify lunar phases (tithis)
-        // Check surrounding days to see which day is the absolute peak of Pournami / Amavasai
-        // or simple representation based on day's tithi (Tithi 15 = Pournami, Tithi 30 = Amavasai)
-        val isPournami = tithi == 15
-        val isAmavasai = tithi == 30
-        val isEkadashi = tithi == 11 || tithi == 26
-        val isPradosham = tithi == 13 || tithi == 28
-
-        // Festivals
-        var festivalName: String? = null
-        if (tamilMonthIndex == 10 && tamilDay == 1) {
-            festivalName = "Thai Pongal / தைப்பொங்கல்"
-        } else if (tamilMonthIndex == 1 && tamilDay == 1) {
-            festivalName = "Tamil New Year / தமிழ்ப்புத்தாண்டு"
-        } else if (tamilMonthIndex == 4 && tamilDay == 1) {
-            festivalName = "Aadi 1 / ஆடி மாதப்பிறப்பு"
-        } else if (tamilMonthIndex == 4 && tamilDay == 18) {
-            festivalName = "Aadi Perukku / ஆடிப்பெருக்கு"
-        } else if (tamilMonthIndex == 8 && isPournami) {
-            festivalName = "Karthikai Deepam / கார்த்திகை தீபம்"
-        } else if (tamilMonthIndex == 7 && isAmavasai) {
-            festivalName = "Diwali / தீபாவளி"
-        } else if (isPournami) {
-            festivalName = "Pournami / பௌர்ணமி"
-        } else if (isAmavasai) {
-            festivalName = "Amavasai / அமாவாசை"
-        }
-
-        return TamilDate(
-            englishYear = year,
-            englishMonth = month,
-            englishDay = day,
-            tamilYearName = tamilYearName,
-            tamilMonthIndex = tamilMonthIndex,
-            tamilMonthNameTamil = tamilMonthsTamil[tamilMonthIndex - 1],
-            tamilMonthNameEnglish = tamilMonthsEnglish[tamilMonthIndex - 1],
-            tamilDay = tamilDay,
-            isPournami = isPournami,
-            isAmavasai = isAmavasai,
-            isEkadashi = isEkadashi,
-            isPradosham = isPradosham,
-            festivalName = festivalName,
-            lunarAge = lunarAge,
-            tithi = tithi,
-            nakshatra = nakshatra
-        )
     }
 
     // Helper to find the Gregorian Date for a specific Tamil Month and Tamil Day in a given Gregorian Year
     fun findGregorianDate(gregorianYear: Int, tamilMonthIndex: Int, tamilDay: Int): LocalDate? {
-        // Iterate through all days of the Gregorian year to find the match.
-        // It's super fast, absolute O(366) operations max, completely offline and bulletproof.
-        var date = LocalDate.of(gregorianYear, 1, 1)
-        val lastDay = LocalDate.of(gregorianYear, 12, 31)
-        while (!date.isAfter(lastDay)) {
-            val tDate = getTamilDate(date.year, date.monthValue, date.dayOfMonth)
-            if (tDate.tamilMonthIndex == tamilMonthIndex && tDate.tamilDay == tamilDay) {
-                return date
+        try {
+            // Iterate through all days of the Gregorian year to find the match.
+            // It's super fast, absolute O(366) operations max, completely offline and bulletproof.
+            var date = LocalDate.of(gregorianYear, 1, 1)
+            val lastDay = LocalDate.of(gregorianYear, 12, 31)
+            while (!date.isAfter(lastDay)) {
+                val tDate = getTamilDate(date.year, date.monthValue, date.dayOfMonth)
+                if (tDate.tamilMonthIndex == tamilMonthIndex && tDate.tamilDay == tamilDay) {
+                    return date
+                }
+                date = date.plusDays(1)
             }
-            date = date.plusDays(1)
+        } catch (e: Exception) {
+            Log.e("TamilCalendarHelper", "findGregorianDate error for $gregorianYear m=$tamilMonthIndex d=$tamilDay", e)
         }
         return null
     }
 
     // Lookup next Moon Phase Date
     fun findNextMoonPhaseDate(startDate: LocalDate, moonPhaseType: String, offsetDays: Int = 0): LocalDate {
-        var date = startDate
-        // Scan up to 45 days into the future
-        for (i in 0..45) {
-            val tDate = getTamilDate(date.year, date.monthValue, date.dayOfMonth)
-            val match = when (moonPhaseType) {
-                "POURNAMI" -> tDate.isPournami
-                "AMAVASAI" -> tDate.isAmavasai
-                "EKADASHI" -> tDate.isEkadashi
-                "PRADOSHAM" -> tDate.isPradosham
-                else -> false
+        try {
+            var date = startDate
+            // Scan up to 45 days into the future
+            for (i in 0..45) {
+                val tDate = getTamilDate(date.year, date.monthValue, date.dayOfMonth)
+                val match = when (moonPhaseType) {
+                    "POURNAMI" -> tDate.isPournami
+                    "AMAVASAI" -> tDate.isAmavasai
+                    "EKADASHI" -> tDate.isEkadashi
+                    "PRADOSHAM" -> tDate.isPradosham
+                    else -> false
+                }
+                if (match) {
+                    return date.minusDays(offsetDays.toLong())
+                }
+                date = date.plusDays(1)
             }
-            if (match) {
-                return date.minusDays(offsetDays.toLong())
-            }
-            date = date.plusDays(1)
+        } catch (e: Exception) {
+            Log.e("TamilCalendarHelper", "findNextMoonPhaseDate error for $startDate phase=$moonPhaseType", e)
         }
         return startDate // fallback
+    }
+
+    fun calculateRahuKalam(
+        dayOfWeek: Int, // e.g. java.util.Calendar.MONDAY
+        sunriseMillis: Long,
+        sunsetMillis: Long
+    ): Pair<Long, Long> {
+        val dayDuration = sunsetMillis - sunriseMillis
+        val onePartMillis = dayDuration / 8
+
+        val rahuPart = when (dayOfWeek) {
+            java.util.Calendar.MONDAY -> 2
+            java.util.Calendar.TUESDAY -> 7
+            java.util.Calendar.WEDNESDAY -> 5
+            java.util.Calendar.THURSDAY -> 6
+            java.util.Calendar.FRIDAY -> 4
+            java.util.Calendar.SATURDAY -> 3
+            java.util.Calendar.SUNDAY -> 8
+            else -> 2
+        }
+
+        val start = sunriseMillis + (onePartMillis * (rahuPart - 1))
+        val end = start + onePartMillis
+        return Pair(start, end)
+    }
+
+    fun calculateYamagandam(
+        dayOfWeek: Int,
+        sunriseMillis: Long,
+        sunsetMillis: Long
+    ): Pair<Long, Long> {
+        val dayDuration = sunsetMillis - sunriseMillis
+        val onePartMillis = dayDuration / 8
+
+        val yamaPart = when (dayOfWeek) {
+            java.util.Calendar.MONDAY -> 5
+            java.util.Calendar.TUESDAY -> 4
+            java.util.Calendar.WEDNESDAY -> 3
+            java.util.Calendar.THURSDAY -> 2
+            java.util.Calendar.FRIDAY -> 7
+            java.util.Calendar.SATURDAY -> 6
+            java.util.Calendar.SUNDAY -> 1
+            else -> 5
+        }
+
+        val start = sunriseMillis + (onePartMillis * (yamaPart - 1))
+        val end = start + onePartMillis
+        return Pair(start, end)
+    }
+
+    fun calculateKuligai(
+        dayOfWeek: Int,
+        sunriseMillis: Long,
+        sunsetMillis: Long
+    ): Pair<Long, Long> {
+        val dayDuration = sunsetMillis - sunriseMillis
+        val onePartMillis = dayDuration / 8
+
+        val kuligaiPart = when (dayOfWeek) {
+            java.util.Calendar.MONDAY -> 4
+            java.util.Calendar.TUESDAY -> 3
+            java.util.Calendar.WEDNESDAY -> 2
+            java.util.Calendar.THURSDAY -> 1
+            java.util.Calendar.FRIDAY -> 6
+            java.util.Calendar.SATURDAY -> 5
+            java.util.Calendar.SUNDAY -> 7
+            else -> 4
+        }
+
+        val start = sunriseMillis + (onePartMillis * (kuligaiPart - 1))
+        val end = start + onePartMillis
+        return Pair(start, end)
+    }
+
+    fun getTodaySunriseSunset(date: LocalDate): Pair<Long, Long> {
+        val zoneId = java.time.ZoneId.systemDefault()
+        val sunrise = date.atTime(6, 0).atZone(zoneId).toInstant().toEpochMilli()
+        val sunset = date.atTime(18, 0).atZone(zoneId).toInstant().toEpochMilli()
+        return Pair(sunrise, sunset)
+    }
+
+    fun formatTimeMillis(millis: Long): String {
+        val localTime = java.time.Instant.ofEpochMilli(millis)
+            .atZone(java.time.ZoneId.systemDefault())
+            .toLocalTime()
+        val hour = localTime.hour
+        val minute = localTime.minute
+        val amPm = if (hour >= 12) "PM" else "AM"
+        val h12 = if (hour == 0) 12 else if (hour > 12) hour - 12 else hour
+        return String.format("%02d:%02d %s", h12, minute, amPm)
+    }
+
+    fun formatTimeRange(start: Long, end: Long): String {
+        return "${formatTimeMillis(start)} – ${formatTimeMillis(end)}"
     }
 }
